@@ -92,16 +92,24 @@ export class Texture {
     }
 }
 
+export interface ModelOptionsObject {
+    enable_depth_test?:boolean;
+}
+
 export class Model {
     gm:GraphicsManager;
     mesh:Mesh;
     shader_program:ShaderProgram|null;
     textures:{[key:string]:Texture} = {};
 
+    // OPTIONS
+    enable_depth_test:boolean = true;
+
     constructor(
         gm:GraphicsManager,
         mesh:Mesh,
         albedo_texture:Texture,
+        options:ModelOptionsObject = {},
         shader_program:string|ShaderProgram|null = null
     ) {
         this.gm = gm;
@@ -116,6 +124,9 @@ export class Model {
         }
         this.mesh = mesh;
         this.textures["albedo_texture"] = albedo_texture;
+
+        if (options.enable_depth_test !== undefined)
+            this.enable_depth_test = options.enable_depth_test;
     }
 
     set_shader_program(shader_program:string|ShaderProgram) {
@@ -133,6 +144,12 @@ export class Model {
     draw_start() {
         if (!this.shader_program)
             throw Error(`Shader program not set for model.`);
+        
+        if (this.enable_depth_test)
+            this.gm.gl.enable(this.gm.gl.DEPTH_TEST);
+        else
+            this.gm.gl.disable(this.gm.gl.DEPTH_TEST);
+
         this.shader_program.use();
         for (const [label, texture] of Object.entries(this.textures)) {
             this.gm.set_uniform(label, texture);
@@ -141,5 +158,9 @@ export class Model {
 
     draw_end() {
         this.mesh.draw();
+
+        if (this.enable_depth_test)
+            this.gm.gl.disable(this.gm.gl.DEPTH_TEST);
+
     }
 }

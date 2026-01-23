@@ -259,7 +259,6 @@ export default class GraphicsManager {
 
         // Render node heirarchy.
         const ortho_projection = (new Mat4()).orthoNO(0, this.canvas.width, 0, this.canvas.height, -1, 1);
-        this.gl.enable(this.gl.DEPTH_TEST);
         this.root_node.render(this.main_camera.get_view_matrix(), this.main_camera.get_projection_matrix(this.canvas), ortho_projection);
         
         return requestAnimationFrame(()=>{return this.render(callback);});
