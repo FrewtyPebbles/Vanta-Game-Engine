@@ -1,8 +1,9 @@
 import { Vec3, Vec2, Mat4, Quat } from '@vicimpa/glm';
 import GraphicsManager, { ShaderProgram } from './graphics_manager';
-import { Node2D, Node3D } from './node';
+import { Node2D, Node3D, Node } from './node';
 import { degrees_to_radians } from './utility';
-import { Model, Texture } from './assets';
+import { CubeMapTexture, get_skybox_vao, Model, Texture, VAOInfo } from './assets';
+import Engine from '../engine';
 
 
 export class Camera3D extends Node3D {
@@ -37,22 +38,20 @@ export class Camera3D extends Node3D {
 
 export class Object3D extends Node3D {
     model:Model;
-    gm:GraphicsManager;
 
-    constructor(gm:GraphicsManager, model:Model) {
-        super();
-        this.gm = gm;
+    constructor(engine:Engine, name:string, model:Model) {
+        super(engine, name);
         this.model = model;
     }
     render(view_matrix: Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4): void {
         this.model.draw_start();
 
         // add the MVP matrix
-        this.gm.set_uniform("u_model", this.get_world_matrix());
+        this.engine.graphics_manager.set_uniform("u_model", this.get_world_matrix());
 
-        this.gm.set_uniform("u_view", view_matrix);
+        this.engine.graphics_manager.set_uniform("u_view", view_matrix);
 
-        this.gm.set_uniform("u_projection", projection_matrix_3d);
+        this.engine.graphics_manager.set_uniform("u_projection", projection_matrix_3d);
 
         this.model.draw_end();
 
@@ -61,19 +60,62 @@ export class Object3D extends Node3D {
     }
 }
 
+export class Skybox extends Node {
+    vao:VAOInfo;
+    shader_program:ShaderProgram;
+    cubemap_texture:CubeMapTexture;
+
+    constructor(engine:Engine, name:string, cubemap_texture:CubeMapTexture, shader_program:ShaderProgram) {
+        super(engine, name);
+        this.vao = get_skybox_vao(this.engine.graphics_manager);
+        this.shader_program = shader_program;
+        this.cubemap_texture = cubemap_texture;
+    }
+    render(view_matrix: Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4): void {
+        if (!this.shader_program)
+            throw Error(`Shader program not set for skybox.`);
+
+        const gm = this.engine.graphics_manager;
+
+        gm.gl.depthFunc(gm.gl.LEQUAL);
+
+        this.shader_program.use();
+
+        // bind the texture
+        gm.set_uniform("skybox_texture", this.cubemap_texture);
+
+        // add the VP matrix
+        gm.set_uniform("u_view", view_matrix);
+
+        gm.set_uniform("u_projection", projection_matrix_3d);
+
+        // render vao
+        gm.gl.bindVertexArray(this.vao.vao);
+        gm.gl.drawElements(gm.gl.TRIANGLES, this.vao.index_count, gm.gl.UNSIGNED_SHORT, 0);
+        gm.gl.bindVertexArray(null);
+
+        gm.gl.depthFunc(gm.gl.LESS);
+
+        gm.clear_shader()
+
+        // render children
+        super.render(view_matrix, projection_matrix_3d, projection_matrix_2d);
+
+    }
+}
+
 export class Sprite2D extends Node2D {
-    gm:GraphicsManager;
     shader_program:ShaderProgram;
 
     textures:{[key:string]:Texture} = {};
 
     constructor(
-        gm:GraphicsManager,
+        engine:Engine,
+        name:string,
         shader_program:ShaderProgram,
         sprite_texture:Texture
     ) {
-        super();
-        this.gm = gm;
+        super(engine, name);
         this.shader_program = shader_program;
         this.textures["sprite_texture"] = sprite_texture;
     }
@@ -81,18 +123,20 @@ export class Sprite2D extends Node2D {
     render(view_matrix: Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4): void {
         this.shader_program.use();
 
+        const gm = this.engine.graphics_manager;
+
         for (const [label, texture] of Object.entries(this.textures)) {
-            this.gm.set_uniform(label, texture);
+            gm.set_uniform(label, texture);
         }
 
         // add the MVP matrix
-        this.gm.set_uniform("u_model", this.get_world_matrix());
+        gm.set_uniform("u_model", this.get_world_matrix());
 
-        this.gm.set_uniform("u_view", view_matrix);
+        gm.set_uniform("u_view", view_matrix);
 
-        this.gm.set_uniform("u_projection", projection_matrix_2d);
+        gm.set_uniform("u_projection", projection_matrix_2d);
 
-        this.gm.clear_shader();
+        gm.clear_shader();
 
         // render children
         super.render(view_matrix, projection_matrix_3d, projection_matrix_2d);

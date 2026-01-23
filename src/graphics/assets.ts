@@ -1,5 +1,68 @@
 import GraphicsManager, { ShaderProgram } from "./graphics_manager";
 
+var skybox_VAO:WebGLVertexArrayObject|null = null
+var skybox_VAO_index_count:number = 0;
+var skybox_VAO_vertex_count:number = 0;
+
+export interface VAOInfo {
+    vao:WebGLVertexArrayObject;
+    index_count:number;
+    vertex_count:number;
+}
+
+export function get_skybox_vao(gm:GraphicsManager):VAOInfo {
+    if (skybox_VAO)
+        return {vao:skybox_VAO, index_count:skybox_VAO_index_count, vertex_count:skybox_VAO_vertex_count};
+    
+    const cube_vertices = new Float32Array([
+        -1, -1, -1, // 0
+        1, -1, -1, // 1
+        1,  1, -1, // 2
+        -1,  1, -1, // 3
+        -1, -1,  1, // 4
+        1, -1,  1, // 5
+        1,  1,  1, // 6
+        -1,  1,  1  // 7
+    ]);
+
+    // Indices for 12 triangles (36 elements)
+    const cube_indices = new Uint16Array([
+        0,1,2, 2,3,0,   // -Z
+        4,5,6, 6,7,4,   // +Z
+        0,4,7, 7,3,0,   // -X
+        1,5,6, 6,2,1,   // +X
+        3,2,6, 6,7,3,   // +Y
+        0,1,5, 5,4,0    // -Y
+    ]);
+
+    skybox_VAO_vertex_count = cube_vertices.length;
+
+    skybox_VAO_index_count = cube_indices.length;
+
+    skybox_VAO = gm.gl.createVertexArray()!;
+    gm.gl.bindVertexArray(skybox_VAO);
+
+    // Vertex buffer
+    const vbo = gm.gl.createBuffer()!;
+    gm.gl.bindBuffer(gm.gl.ARRAY_BUFFER, vbo);
+    gm.gl.bufferData(gm.gl.ARRAY_BUFFER, cube_vertices, gm.gl.STATIC_DRAW);
+
+    // Position attribute (location 0)
+    gm.gl.enableVertexAttribArray(0);
+    gm.gl.vertexAttribPointer(0, 3, gm.gl.FLOAT, false, 0, 0);
+
+    // Index buffer
+    const ibo = gm.gl.createBuffer()!;
+    gm.gl.bindBuffer(gm.gl.ELEMENT_ARRAY_BUFFER, ibo);
+    gm.gl.bufferData(gm.gl.ELEMENT_ARRAY_BUFFER, cube_indices, gm.gl.STATIC_DRAW);
+
+    // Unbind VAO (good practice)
+    gm.gl.bindVertexArray(null);
+    gm.gl.bindBuffer(gm.gl.ARRAY_BUFFER, null);
+
+    return {vao:skybox_VAO, index_count:skybox_VAO_index_count, vertex_count:skybox_VAO_vertex_count};
+}
+
 export class Mesh {
     gm: GraphicsManager;
     vao: WebGLVertexArrayObject;
@@ -80,7 +143,7 @@ export class Texture {
             mip_level,
             this.gm.gl.RGBA,
             this.gm.gl.RGBA,
-            this.gm.gl.UNSIGNED_BYTE,
+            image_type,
             image
         );
         this.gm.gl.generateMipmap(this.gm.gl.TEXTURE_2D);
@@ -92,15 +155,81 @@ export class Texture {
     }
 }
 
+export class CubeMapTexture {
+    gm:GraphicsManager;
+    texture: WebGLTexture;
+
+    constructor(gm:GraphicsManager,
+        image_top:TexImageSource,
+        image_bottom:TexImageSource,
+        image_front:TexImageSource,
+        image_back:TexImageSource,
+        image_left:TexImageSource,
+        image_right:TexImageSource,
+    texture_parameters:{[parameter_name:number]:number}, mip_level:number, image_type:number = UNSIGNED_BYTE) {
+        this.gm = gm;
+        this.texture = this.create_texture([
+            image_right,
+            image_left,
+            image_top,
+            image_bottom,
+            image_front,
+            image_back
+        ], texture_parameters, mip_level, image_type);
+    }
+
+    create_texture(images:TexImageSource[], texture_parameters:{[parameter_name:number]:number}, mip_level:number, image_type:number = this.gm.gl.UNSIGNED_BYTE):WebGLTexture {
+        let texture = this.gm.gl.createTexture();
+        if (!texture) throw new Error("Failed to create texture");
+        this.gm.gl.bindTexture(this.gm.gl.TEXTURE_CUBE_MAP, texture);
+
+        const targets = [
+            this.gm.gl.TEXTURE_CUBE_MAP_POSITIVE_X, // right
+            this.gm.gl.TEXTURE_CUBE_MAP_NEGATIVE_X, // left
+            this.gm.gl.TEXTURE_CUBE_MAP_POSITIVE_Y, // top
+            this.gm.gl.TEXTURE_CUBE_MAP_NEGATIVE_Y, // bottom
+            this.gm.gl.TEXTURE_CUBE_MAP_POSITIVE_Z, // front
+            this.gm.gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, // back
+        ];
+
+
+        targets.forEach((target, i) => {
+            this.gm.gl.bindTexture(this.gm.gl.TEXTURE_CUBE_MAP, texture);
+            this.gm.gl.texImage2D(target, mip_level, this.gm.gl.RGBA, this.gm.gl.RGBA, image_type, images[i]);
+            this.gm.gl.generateMipmap(this.gm.gl.TEXTURE_CUBE_MAP);
+        });
+        
+        this.gm.gl.texParameteri(this.gm.gl.TEXTURE_CUBE_MAP, this.gm.gl.TEXTURE_MIN_FILTER, this.gm.gl.LINEAR_MIPMAP_LINEAR);
+        this.gm.gl.texParameteri(this.gm.gl.TEXTURE_CUBE_MAP, this.gm.gl.TEXTURE_MAG_FILTER, this.gm.gl.LINEAR);
+        this.gm.gl.texParameteri(this.gm.gl.TEXTURE_CUBE_MAP, this.gm.gl.TEXTURE_WRAP_S, this.gm.gl.CLAMP_TO_EDGE);
+        this.gm.gl.texParameteri(this.gm.gl.TEXTURE_CUBE_MAP, this.gm.gl.TEXTURE_WRAP_T, this.gm.gl.CLAMP_TO_EDGE);
+        this.gm.gl.texParameteri(this.gm.gl.TEXTURE_CUBE_MAP, this.gm.gl.TEXTURE_WRAP_R, this.gm.gl.CLAMP_TO_EDGE);
+        
+        for (let [parameter_name_string, parameter_value] of Object.entries(texture_parameters)) {
+            let parameter_name = Number(parameter_name_string);
+            this.gm.gl.texParameteri(this.gm.gl.TEXTURE_CUBE_MAP, parameter_name, parameter_value);
+        }
+        return texture;
+    }
+}
+
+type TextureTypes = Texture|CubeMapTexture;
+
 export interface ModelOptionsObject {
     enable_depth_test?:boolean;
 }
+
+type TexturesMap = {
+    base_texture?: TextureTypes;
+    skybox_texture?: TextureTypes;
+    [key: string]: TextureTypes | undefined;
+};
 
 export class Model {
     gm:GraphicsManager;
     mesh:Mesh;
     shader_program:ShaderProgram|null;
-    textures:{[key:string]:Texture} = {};
+    textures:TexturesMap = {};
 
     // OPTIONS
     enable_depth_test:boolean = true;
@@ -108,7 +237,7 @@ export class Model {
     constructor(
         gm:GraphicsManager,
         mesh:Mesh,
-        albedo_texture:Texture,
+        textures:TexturesMap = {},
         options:ModelOptionsObject = {},
         shader_program:string|ShaderProgram|null = null
     ) {
@@ -123,7 +252,7 @@ export class Model {
             this.shader_program = null;
         }
         this.mesh = mesh;
-        this.textures["albedo_texture"] = albedo_texture;
+        this.textures = textures;
 
         if (options.enable_depth_test !== undefined)
             this.enable_depth_test = options.enable_depth_test;
@@ -161,6 +290,8 @@ export class Model {
 
         if (this.enable_depth_test)
             this.gm.gl.disable(this.gm.gl.DEPTH_TEST);
+
+        this.gm.clear_shader()
 
     }
 }

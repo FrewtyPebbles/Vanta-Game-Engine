@@ -1,9 +1,18 @@
 import { Vec3, Vec2, Mat4, Quat } from '@vicimpa/glm';
+import GraphicsManager from './graphics_manager';
+import Engine from '../engine';
 
 
 export class Node {
+    engine:Engine;
+    name:string;
     parent:Node|null = null;
     children:Array<Node> = [];
+
+    constructor(engine:Engine, name:string) {
+        this.engine = engine
+        this.name = name;
+    }
 
     push_child(node:Node) {
         if (node.parent) {
@@ -13,16 +22,46 @@ export class Node {
         node.parent = this;
     }
 
-    has_child(node:Node):boolean {
-        return this.children.includes(node);
+    has_child(node:Node|string):boolean {
+        if (node instanceof Node)
+            return this.children.includes(node);
+
+        // node is string
+        for (const child of this.children) {
+            if (child.name === node)
+                return true;
+        }
+        return false;
     }
 
-    remove_child(node:Node) {
-        const index = this.children.indexOf(node);
-        if (index > -1) {
-            this.children.splice(index, 1);
+    remove_child(node:Node|string) {
+        if (node instanceof Node) {
+            const index = this.children.indexOf(node);
+            if (index > -1) {
+                this.children.splice(index, 1);
+            }
+            node.parent = null;
+        } else {
+            // node is string
+
+            // remove parent
+            const node_instance = this.engine.get_node(node);
+            if (node_instance)
+                node_instance.parent = null;
+
+            // remove from children of parent.
+            var index = 0;
+
+            for (const child of this.children) {
+                if (child.name === node)
+                    break;
+                index++;
+            }
+
+            if (index > -1) {
+                this.children.splice(index, 1);
+            }
         }
-        node.parent = null;
     }
 
     render(view_matrix:Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4) {

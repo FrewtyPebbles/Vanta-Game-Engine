@@ -103,7 +103,7 @@ export async function load_obj(gm:GraphicsManager, model_path:string, image_asse
 
     // Build the model
     var mesh = new Mesh(gm, obj.vertices, obj.normals, obj.uvs, obj.indices);
-    var model = new Model(gm, mesh, image_assets[0]);
+    var model = new Model(gm, mesh, { base_texture:image_assets[0] });
 
     return model;
 }

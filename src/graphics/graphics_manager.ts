@@ -1,7 +1,8 @@
 import { Vec3, Vec2, Mat4, Quat } from '@vicimpa/glm';
 import { Node3D, Node } from './node';
 import { Camera3D } from './node_extensions';
-import { Texture } from './assets';
+import { CubeMapTexture, Texture } from './assets';
+import Engine from '../engine';
 
 // passthrough
 export const DEFAULT_VERTEX = `
@@ -26,6 +27,8 @@ export const DEFAULT_FRAGMENT = `
     }
 `;
 
+const MAX_DELTA_TIME = 0.1; // 100 ms
+
 export type WebGLShaderType = number;
 export type WebGLType = number;
 
@@ -40,6 +43,7 @@ export interface WebGLVertexAttribute {
 
 export enum WebGLUniformType {
     TEXTURE_2D,
+    TEXTURE_CUBE_MAP,
     F,
     I,
     F2V,
@@ -91,7 +95,7 @@ export class ShaderProgram {
             loc:null,
             type:uniform_type
         }
-        if (uniform_type == WebGLUniformType.TEXTURE_2D) {
+        if (uniform_type === WebGLUniformType.TEXTURE_2D || uniform_type === WebGLUniformType.TEXTURE_CUBE_MAP) {
             this.uniforms[label].texture_unit = this.texture_counter;
             this.texture_counter += 1;
         }
@@ -124,6 +128,7 @@ export class ShaderProgram {
 }
 
 export default class GraphicsManager {
+    engine:Engine;
     canvas:HTMLCanvasElement;
     gl:WebGL2RenderingContext;
     shader_programs:{[key:string]:ShaderProgram} = {};
@@ -131,11 +136,10 @@ export default class GraphicsManager {
     vertex_count:number = 0;
     shader_program:ShaderProgram|null = null;
 
-    // Node Heirarchy
-    root_node:Node = new Node();
-    main_camera:Camera3D = new Camera3D();
+    prev_time:number = 0;
 
-    constructor(canvas:HTMLCanvasElement) {
+    constructor(engine:Engine, canvas:HTMLCanvasElement) {
+        this.engine = engine;
         this.canvas = canvas;
         this.gl = canvas.getContext("webgl2")! as WebGL2RenderingContext;
     }
@@ -209,6 +213,12 @@ export default class GraphicsManager {
                 this.gl.uniform1i(uniform.loc!, uniform.texture_unit!);
                 break;
 
+            case WebGLUniformType.TEXTURE_CUBE_MAP:
+                this.gl.activeTexture(this.gl.TEXTURE0 + uniform.texture_unit!);
+                this.gl.bindTexture(this.gl.TEXTURE_CUBE_MAP, (value as CubeMapTexture).texture);
+                this.gl.uniform1i(uniform.loc!, uniform.texture_unit!);
+                break;
+
             case WebGLUniformType.F:
                 this.gl.uniform1f(uniform.loc!, value);
                 break;
@@ -250,8 +260,15 @@ export default class GraphicsManager {
         }
     }
 
-    render(callback:(gm:GraphicsManager)=>void):number {
-        callback(this);
+    render(update_callback:(gm:GraphicsManager, time:number, delta_time:number)=>void) {
+        // start the recursive render frame loop.
+        this.render_frame(update_callback);
+    }
+
+    private render_frame(update_callback:(gm:GraphicsManager, time:number, delta_time:number)=>void, time:number = 0):number {
+        const delta_time = Math.min((time - this.prev_time) * 0.001, MAX_DELTA_TIME); // ms to seconds
+        this.prev_time = time;
+        update_callback(this, time, delta_time);
         
         this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
         this.gl.clearColor(0, 0, 0, 0);
@@ -259,8 +276,8 @@ export default class GraphicsManager {
 
         // Render node heirarchy.
         const ortho_projection = (new Mat4()).orthoNO(0, this.canvas.width, 0, this.canvas.height, -1, 1);
-        this.root_node.render(this.main_camera.get_view_matrix(), this.main_camera.get_projection_matrix(this.canvas), ortho_projection);
+        this.engine.root_node.render(this.engine.main_camera.get_view_matrix(), this.engine.main_camera.get_projection_matrix(this.canvas), ortho_projection);
         
-        return requestAnimationFrame(()=>{return this.render(callback);});
+        return requestAnimationFrame((new_time)=>{return this.render_frame(update_callback, new_time);});
     }
 }
