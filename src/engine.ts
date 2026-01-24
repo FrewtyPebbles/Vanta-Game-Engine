@@ -1,6 +1,6 @@
 import { GraphicsManager } from "./graphics/graphics_manager.ts";
-import { Camera3D } from "./graphics/node_extensions.ts";
-import { Node } from "./graphics/node.ts";
+import { Camera3D } from "./node/camera3d.ts";
+import { Node } from "./node.ts";
 import { InputManager } from "./input/input_manager.ts";
 import Utility from "./utility.ts";
 

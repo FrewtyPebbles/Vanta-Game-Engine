@@ -88,7 +88,7 @@ async function startup(engine:Engine) {
     shader_prog_3d.add_uniform("u_view", WebGLUniformType.F4M);
     shader_prog_3d.add_uniform("u_projection", WebGLUniformType.F4M);
 
-    shader_prog_3d.add_uniform("base_texture", WebGLUniformType.TEXTURE_2D);
+    shader_prog_3d.add_uniform("texture_albedo", WebGLUniformType.TEXTURE_2D);
 
     shader_prog_3d.build()
 

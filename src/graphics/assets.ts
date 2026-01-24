@@ -365,7 +365,7 @@ export interface ModelOptionsObject {
 }
 
 type TexturesMap = {
-    base_texture?: TextureTypes;
+    texture_albedo?: TextureTypes;
     skybox_texture?: TextureTypes;
     [key: string]: TextureTypes | undefined;
 };

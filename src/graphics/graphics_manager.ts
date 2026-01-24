@@ -1,6 +1,5 @@
 import { Vec3, Vec2, Mat4, Quat, Vec4 } from '@vicimpa/glm';
-import { Node3D, Node } from './node.ts';
-import { Camera3D } from './node_extensions.ts';
+import { Node3D, Node } from '../node.ts';
 import { CubeMapTexture, Texture, TextureType } from './assets.ts';
 import Engine from '../engine.ts';
 
