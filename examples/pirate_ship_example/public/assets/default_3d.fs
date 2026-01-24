@@ -21,9 +21,10 @@ struct Material {
 };
 // PBR
 uniform sampler2D texture_albedo;
+uniform sampler2D texture_normal;
 uniform sampler2D texture_metallic;
 uniform sampler2D texture_roughness;
-uniform sampler2D texture_normal;
+uniform sampler2D texture_ao;
 
 struct PointLight {
     vec3 position;
