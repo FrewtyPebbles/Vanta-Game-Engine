@@ -2,28 +2,33 @@
   "name": "webgl2-engine",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
-  "scripts": {
-    "build": "webpack --mode production",
-    "start": "webpack serve --mode development"
+  "type": "module",
+
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
+
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "clean": "rimraf dist"
+  },
+  "keywords": ["game", "engine", "render", "rendering", "3d", "webgl2", "webgl"],
+  "author": "William Lim",
   "devDependencies": {
     "@types/node": "^25.0.10",
-    "copy-webpack-plugin": "^13.0.1",
-    "cpx": "^1.5.0",
-    "html-webpack-plugin": "^5.6.6",
     "ts-loader": "^9.5.4",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3",
-    "webpack": "^5.104.1",
-    "webpack-cli": "^6.0.1",
-    "webpack-dev-server": "^5.2.3"
+    "typescript": "^5.9.3"
   },
-  "dependencies": {
+  "peerDependencies": {
     "@vicimpa/glm": "^0.1.10"
   }
 }

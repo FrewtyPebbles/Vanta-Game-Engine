@@ -1,6 +1,6 @@
 import { Vec3, Vec2, Mat4, Quat } from '@vicimpa/glm';
-import GraphicsManager from './graphics_manager';
-import Engine from '../engine';
+import { GraphicsManager } from './graphics_manager.ts';
+import Engine from '../engine.ts';
 
 
 export class Node {

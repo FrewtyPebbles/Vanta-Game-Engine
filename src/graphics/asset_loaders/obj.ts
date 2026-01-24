@@ -1,5 +1,5 @@
-import { Mesh, Model, Texture } from "../assets";
-import GraphicsManager from "../graphics_manager";
+import { Mesh, Model, Texture } from "../assets.ts";
+import { GraphicsManager } from "../graphics_manager.ts";
 
 interface OBJData {
     vertices: Float32Array;

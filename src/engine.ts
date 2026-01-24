@@ -1,8 +1,8 @@
-import GraphicsManager from "./graphics/graphics_manager";
-import { Camera3D } from "./graphics/node_extensions";
-import { Node } from "./graphics/node";
-import { InputManager } from "./input/input_manager";
-import Utility from "./utility";
+import { GraphicsManager } from "./graphics/graphics_manager.ts";
+import { Camera3D } from "./graphics/node_extensions.ts";
+import { Node } from "./graphics/node.ts";
+import { InputManager } from "./input/input_manager.ts";
+import Utility from "./utility.ts";
 
 
 export default class Engine {
@@ -30,7 +30,7 @@ export default class Engine {
             return node;
 
         for (const child_node of node.children) {
-            const search_result = this.get_node_search(name, node);
+            const search_result = this.get_node_search(name, child_node);
             if (search_result)
                 return search_result;
         }

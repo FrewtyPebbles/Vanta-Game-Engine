@@ -1,4 +1,4 @@
-import Engine from "../engine";
+import Engine from "../engine.ts";
 
 export enum MouseButton {
   Left = 0,

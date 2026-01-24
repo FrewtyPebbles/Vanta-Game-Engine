@@ -1,4 +1,4 @@
-import GraphicsManager, { ShaderProgram } from "./graphics_manager";
+import { GraphicsManager, ShaderProgram } from "./graphics_manager.ts";
 
 var skybox_VAO:WebGLVertexArrayObject|null = null
 var skybox_VAO_index_count:number = 0;

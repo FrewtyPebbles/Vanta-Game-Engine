@@ -1,9 +1,9 @@
 import { Vec3, Vec2, Mat4, Quat } from '@vicimpa/glm';
-import GraphicsManager, { ShaderProgram } from './graphics_manager';
-import { Node2D, Node3D, Node } from './node';
-import { degrees_to_radians } from './utility';
-import { CubeMapTexture, get_skybox_vao, Model, Texture, VAOInfo } from './assets';
-import Engine from '../engine';
+import { GraphicsManager, ShaderProgram } from './graphics_manager.ts';
+import { Node2D, Node3D, Node } from './node.ts';
+import { degrees_to_radians } from './utility.ts';
+import { CubeMapTexture, get_skybox_vao, Model, Texture, VAOInfo } from './assets.ts';
+import Engine from '../engine.ts';
 
 
 export class Camera3D extends Node3D {

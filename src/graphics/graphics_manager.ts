@@ -1,8 +1,8 @@
 import { Vec3, Vec2, Mat4, Quat } from '@vicimpa/glm';
-import { Node3D, Node } from './node';
-import { Camera3D } from './node_extensions';
-import { CubeMapTexture, Texture } from './assets';
-import Engine from '../engine';
+import { Node3D, Node } from './node.ts';
+import { Camera3D } from './node_extensions.ts';
+import { CubeMapTexture, Texture } from './assets.ts';
+import Engine from '../engine.ts';
 
 // passthrough
 export const DEFAULT_VERTEX = `
@@ -127,7 +127,7 @@ export class ShaderProgram {
     }
 }
 
-export default class GraphicsManager {
+export class GraphicsManager {
     engine:Engine;
     canvas:HTMLCanvasElement;
     gl:WebGL2RenderingContext;
@@ -260,6 +260,20 @@ export default class GraphicsManager {
         }
     }
 
+    private resize_canvas() {
+        const dpr = window.devicePixelRatio || 1;
+
+        const displayWidth  = Math.floor(this.canvas.clientWidth  * dpr);
+        const displayHeight = Math.floor(this.canvas.clientHeight * dpr);
+
+        if (this.canvas.width !== displayWidth || this.canvas.height !== displayHeight) {
+            this.canvas.width  = displayWidth;
+            this.canvas.height = displayHeight;
+        }
+    }
+
+
+
     render(update_callback:(gm:GraphicsManager, time:number, delta_time:number)=>void) {
         // start the recursive render frame loop.
         this.render_frame(update_callback);
@@ -270,6 +284,7 @@ export default class GraphicsManager {
         this.prev_time = time;
         update_callback(this, time, delta_time);
         
+        this.resize_canvas();
         this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
         this.gl.clearColor(0, 0, 0, 0);
         this.gl.clear(this.gl.COLOR_BUFFER_BIT);        
