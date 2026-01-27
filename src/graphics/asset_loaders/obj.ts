@@ -1,3 +1,4 @@
+import { Vec3 } from "@vicimpa/glm";
 import { Material, Mesh, Model, Texture, TextureType } from "../assets.ts";
 import { GraphicsManager } from "../graphics_manager.ts";
 
@@ -6,6 +7,8 @@ interface OBJData {
     normals: Float32Array;
     uvs: Float32Array;
     indices: Uint16Array;
+    dimensions:Vec3;
+    center:Vec3;
 }
 
 async function parse_obj(text: string): Promise<OBJData> {
@@ -20,6 +23,9 @@ async function parse_obj(text: string): Promise<OBJData> {
 
     const vertex_map = new Map<string, number>(); // maps "v/vt/vn" to index
 
+    var [min_x, min_y, min_z] = [Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE];
+    var [max_x, max_y, max_z] = [Number.MIN_VALUE, Number.MIN_VALUE, Number.MIN_VALUE];
+
     const lines = text.split("\n");
     for (const line of lines) {
         const parts = line.trim().split(/\s+/);
@@ -27,7 +33,17 @@ async function parse_obj(text: string): Promise<OBJData> {
 
         switch(parts[0]) {
             case "v":
-                temp_vertices.push(parts.slice(1).map(Number));
+                const [x, y, z] = parts.slice(1).map(Number);
+                
+                min_x = x < min_x ? x : min_x;
+                min_y = y < min_y ? y : min_y;
+                min_z = z < min_z ? z : min_z;
+
+                max_x = x > max_x ? x : max_x;
+                max_y = y > max_y ? y : max_y;
+                max_z = z > max_z ? z : max_z;
+
+                temp_vertices.push([x, y, z]);
                 break;
             case "vn":
                 temp_normals.push(parts.slice(1).map(Number));
@@ -72,7 +88,9 @@ async function parse_obj(text: string): Promise<OBJData> {
         vertices: new Float32Array(positions),
         normals: new Float32Array(normals),
         uvs: new Float32Array(uvs),
-        indices: new Uint16Array(indices)
+        indices: new Uint16Array(indices),
+        dimensions: new Vec3(max_x - min_x, max_y - min_y, max_z - min_z),
+        center: new Vec3((max_x + min_x)/2.0, (max_y + min_y)/2.0, (max_z + min_z)/2.0),
     };
 }
 
@@ -102,7 +120,7 @@ export async function load_obj(gm:GraphicsManager, model_path:string, image_asse
     }
 
     // Build the model
-    var mesh = new Mesh(gm, obj.vertices, obj.normals, obj.uvs, obj.indices);
+    var mesh = new Mesh(gm, obj.vertices, obj.normals, obj.uvs, obj.indices, obj.dimensions, obj.center);
     var model = new Model(gm, mesh, new Material(gm, image_assets[0], 0.0, 0.0, 0.0));
 
     return model;

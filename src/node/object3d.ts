@@ -1,7 +1,8 @@
-import { Mat4 } from "@vicimpa/glm";
+import { Mat4, Vec4 } from "@vicimpa/glm";
 import Engine from "../engine.ts";
 import { Model } from "../graphics/assets.ts";
 import { Node3D } from "../node.ts";
+import { Skybox } from "./skybox.ts";
 
 export class Object3D extends Node3D {
     model:Model;
@@ -13,14 +14,26 @@ export class Object3D extends Node3D {
     render_class(view_matrix: Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4): void {
         this.model.draw_start();
 
+        const skybox = this.get_parent_of_type(Skybox);
+        if (skybox)
+            this.engine.graphics_manager.set_uniform("environment.ambient_light", skybox.ambient_light);
+
         // CAMERA POS
         this.engine.graphics_manager.set_uniform("camera_position", this.engine.main_camera.position);
 
         // PASS IN LIGHTS
         var index = 0;
+
+        var mesh_size = this.model.mesh.dimensions.clone().mul(this.scale).length();
+
+        var local_mesh_center = this.model.mesh.center;
+        var mesh_center = new Vec4(local_mesh_center.x, local_mesh_center.y, local_mesh_center.z, 1.0).applyMat4(this.get_world_matrix())
+        
         for (const light of this.engine.point_lights) {
-            light.set_uniforms("point_lights", index);
-            index++;
+            if (mesh_center.xyz.distance(light.position) - mesh_size / 2.0 < light.range) {
+                light.set_uniforms("point_lights", index);
+                index++;
+            }
         }
         if (index)
             this.engine.graphics_manager.set_uniform("point_lights_count", index);

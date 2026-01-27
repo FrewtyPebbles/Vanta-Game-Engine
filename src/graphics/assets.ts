@@ -140,17 +140,23 @@ export class Mesh {
     vao: WebGLVertexArrayObject;
     vertexCount: number;
     indexCount: number;
+    dimensions: Vec3;
+    center: Vec3;
 
     constructor(
         gm: GraphicsManager,
         vertices: Float32Array|number[],    // xyz
         normals: Float32Array|number[],     // xyz
         uvs: Float32Array|number[],         // uv
-        indices: Uint16Array|number[]       // triangle indices
+        indices: Uint16Array|number[],       // triangle indices
+        dimensions: Vec3,
+        center: Vec3,
     ) {
         this.gm = gm
         this.vertexCount = vertices.length / 3;
         this.indexCount = indices.length;
+        this.dimensions = dimensions;
+        this.center = center;
 
         // Create buffers
         const vboPositions = gm.gl.createBuffer()!;

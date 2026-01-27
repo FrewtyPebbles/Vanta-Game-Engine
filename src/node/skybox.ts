@@ -1,4 +1,4 @@
-import { Mat4 } from "@vicimpa/glm";
+import { Mat4, Vec3 } from "@vicimpa/glm";
 import Engine from "../engine.ts";
 import { CubeMapTexture, get_skybox_vao, VAOInfo } from "../graphics/assets.ts";
 import { ShaderProgram } from "../graphics/graphics_manager.ts";
@@ -8,12 +8,14 @@ export class Skybox extends Node {
     vao:VAOInfo;
     shader_program:ShaderProgram;
     cubemap_texture:CubeMapTexture;
+    ambient_light:Vec3;
 
-    constructor(engine:Engine, name:string, cubemap_texture:CubeMapTexture, shader_program:ShaderProgram) {
+    constructor(engine:Engine, name:string, cubemap_texture:CubeMapTexture, shader_program:ShaderProgram, ambient_light:Vec3) {
         super(engine, name);
         this.vao = get_skybox_vao(this.engine.graphics_manager);
         this.shader_program = shader_program;
         this.cubemap_texture = cubemap_texture;
+        this.ambient_light = ambient_light;
     }
     render_class(view_matrix: Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4): void {
         if (!this.shader_program)

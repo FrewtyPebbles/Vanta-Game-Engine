@@ -1,4 +1,4 @@
-import { Mat3, Mat4, Quat, Vec2, vec3, Vec3 } from "@vicimpa/glm";
+import { Mat3, Mat4, Quat, Vec2, vec3, Vec3, Vec4 } from "@vicimpa/glm";
 import Engine, { load_obj, GraphicsManager, WebGLUniformType, Object3D, Skybox, InputManager, CubeMapTexture, Sprite2D, Texture, Node, TextureType, AttachmentType, PointLight } from "webgl2-engine";
 
 
@@ -37,38 +37,19 @@ function update(engine:Engine, time:number, delta_time:number) {
         .mul(new Quat().setAxisAngle(right, wobble_roll));
 
     if (im.is_key_down("KeyW")) {        
-        pirate_ship.position.add(forward.mul(100 * delta_time));
+        pirate_ship.position.add(forward.clone().mul(100 * delta_time));
     }
 
     if (im.is_key_down("KeyS")) {
-        pirate_ship.position.add(forward.mul(-100 * delta_time));
+        pirate_ship.position.add(forward.clone().mul(-100 * delta_time));
     }
+
+    var local_mesh_center = pirate_ship.model.mesh.center;
+    var mesh_center = new Vec4(local_mesh_center.x, local_mesh_center.y, local_mesh_center.z, 1.0).applyMat4(pirate_ship.get_world_matrix())
+    engine.main_camera.rotation.fromMat3(new Mat3().fromMat4(new Mat4().lookAt(engine.main_camera.position, mesh_center, new Vec3(0,1,0)).invert()));
     
     pirate_ship.rotation = new Quat().mul(wobble_quat).mul(rotation_quat);
-    
-    engine.main_camera.rotation.fromMat3(new Mat3().fromMat4(new Mat4().lookAt(engine.main_camera.position, pirate_ship.position.clone().sub(new Vec3(0, -100, 0)), new Vec3(0,1,0)).invert()));
 
-    // if (!planet_sprite)
-    //     return;
-
-    // gm.use_framebuffer("test");
-
-    // gm.gl.enable(gm.gl.DEPTH_TEST)
-
-    // pirate_ship.render(
-    //     engine.main_camera.get_view_matrix(),
-    //     engine.main_camera.get_projection_matrix(engine.canvas),
-    //     new Mat4(),
-    //     time,
-    //     delta_time
-    // );
-
-    // gm.gl.disable(gm.gl.DEPTH_TEST)
-
-    // gm.unuse_framebuffer();
-
-    // const test_framebuffer = gm.framebuffers["test"];
-    // planet_sprite.sprite_texture = test_framebuffer.textures["default"];
 }
 
 async function startup(engine:Engine) {
@@ -91,9 +72,13 @@ async function startup(engine:Engine) {
     shader_prog_3d.add_shader(gm.gl.VERTEX_SHADER, await engine.UTIL.load_text_file("/assets/default_3d.vs"));
     shader_prog_3d.add_shader(gm.gl.FRAGMENT_SHADER, await engine.UTIL.load_text_file("/assets/default_3d.fs"));
 
+    // MVP
     shader_prog_3d.add_uniform("u_model", WebGLUniformType.F4M);
     shader_prog_3d.add_uniform("u_view", WebGLUniformType.F4M);
     shader_prog_3d.add_uniform("u_projection", WebGLUniformType.F4M);
+
+    // environment
+    shader_prog_3d.add_uniform("environment.ambient_light", WebGLUniformType.F3V);
 
     // camera
     shader_prog_3d.add_uniform("camera_position", WebGLUniformType.F3V);
@@ -199,7 +184,7 @@ async function startup(engine:Engine) {
 
     const planet_texture = new Texture(gm, await engine.UTIL.load_image("/assets/sprites/planet.png"), TextureType.DEFAULT, {})
 
-    engine.root_node = new Skybox(engine, "default_skybox", skybox_texture, shader_prog_skybox);
+    engine.root_node = new Skybox(engine, "default_skybox", skybox_texture, shader_prog_skybox, new Vec3(0.5));
 
     const pirate_ship_model = await pirate_ship_model_promise;
 
@@ -210,14 +195,14 @@ async function startup(engine:Engine) {
 
     const pirate_ship = new Object3D(engine, "pirate_ship", pirate_ship_model);
 
-    pirate_ship.model.material.roughness = 0.001
-    pirate_ship.model.material.metalic = 1.0
+    pirate_ship.model.material.roughness = 1.0
+    pirate_ship.model.material.metalic = 0.0
 
     const overlay_node = new Node(engine, "overlay")
 
     const planet_sprite = new Sprite2D(engine, "planet", planet_texture, shader_prog_2d);
 
-    const point_light = new PointLight(engine, "point_light", new Vec3(1.0,0.0,0.0), 1.0, 1.0, 1.0, 100.0, 100.0);
+    const point_light = new PointLight(engine, "point_light", new Vec3(1.0,0.0,0.0), 1.0, 1.0, 1.0, 100.0, 200.0);
 
     planet_sprite.scale = new Vec2(100);
 

@@ -2,6 +2,7 @@ import { Vec3, Vec2, Mat4, Quat } from '@vicimpa/glm';
 import { GraphicsManager } from './graphics/graphics_manager.ts';
 import Engine from './engine.ts';
 
+type Constructor<T> = new (...args: any[]) => T;
 
 export class Node {
     engine:Engine;
@@ -30,6 +31,30 @@ export class Node {
                 return true;
         }
         return false;
+    }
+
+    has_parent(node:Node|string):boolean {
+        if (this.parent && (this.parent === node || this.parent.name === node))
+            return true;
+        if (this.parent)
+            return this.parent.has_parent(node);
+        return false;
+    }
+
+    get_parent(node_name:string):Node|null {
+        if (this.parent && this.parent.name === node_name)
+            return this.parent;
+        if (this.parent)
+            return this.parent.get_parent(node_name);
+        return null;
+    }
+
+    get_parent_of_type<T>(node_type:Constructor<T>):T|null {
+        if (this.parent instanceof node_type)
+            return this.parent;
+        if (this.parent)
+            return this.parent.get_parent_of_type<T>(node_type);
+        return null;
     }
     
     push_child(node:Node) {
@@ -147,12 +172,20 @@ export class Node3D extends Node {
     }
 
     get_world_matrix():Mat4 {
-        let model = this.get_model_matrix();
+        const local = this.get_model_matrix();
         
         if (this.parent instanceof Node3D) {
-            model = this.parent.get_model_matrix().mul(model)
+            return this.parent.get_world_matrix().mul(local)
+        } else if (this.parent) {
+            let parent = this.parent.parent;
+            while (parent) {
+                if (parent instanceof Node3D) {
+                    return parent.get_world_matrix().mul(local)
+                }
+                parent = parent.parent;
+            }
         }
 
-        return model;
+        return local;
     }
 }

@@ -13,6 +13,10 @@ out vec4 frag_color;
 #define N_DIRECTIONAL_LIGHTS 10
 #define PI 3.14159265358979323846264338327950288419716939937510
 
+struct Environment {
+    vec3 ambient_light;
+};
+
 // fallback values
 struct Material {
     bool has_normal_texture;
@@ -79,6 +83,8 @@ uniform int directional_lights_count;
 
 uniform Material material;
 
+uniform Environment environment;
+
 uniform vec3 camera_position;
 
 float L(PointLight light);
@@ -88,7 +94,7 @@ float geometry_schlick_GGX(float NdotV, float k);
 float geometry_smith(vec3 N, vec3 V, vec3 L, float k);
 vec3 fresnel_schlick(float cosTheta, vec3 F0);
 
-vec3 Fr(PointLight light, vec3 light_dir, vec4 albedo_color);
+vec3 Fr(vec3 light_dir, vec4 albedo_color);
 
 void main() {
     vec4 base_color = texture(material_texture_albedo, v_uv);
@@ -99,40 +105,40 @@ void main() {
         PointLight light = point_lights[i];
         vec3 light_dir = normalize(light.position - v_frag_pos);
         float n_dot_l = max(dot(v_normal, light_dir), 0.0);
-        total_specular_diffuse += Fr(light, light_dir, base_color) * L(light) * n_dot_l;
+        vec3 product = Fr(light_dir, base_color) * L(light) * n_dot_l;
+        total_specular_diffuse += product * light.color;
     }
 
-    base_color.rgb += total_specular_diffuse;
+    base_color.rgb = environment.ambient_light * base_color.rgb + total_specular_diffuse;
 
     frag_color = base_color;
 }
 
-vec3 cook_torrance(PointLight light, vec3 light_dir, vec4 albedo_color) {
-    // f_\text{CookTorrance} = \frac{DGF}{4(\omega_0 * n)(\omega_i * n)}
+vec3 Fr(vec3 light_dir, vec4 albedo_color) {
+
+    // COOK TORRANCE
     vec3 view_vector = normalize(camera_position - v_frag_pos);
     vec3 halfway_vector = (light_dir + view_vector) / length(light_dir + view_vector);
+    
+    /// DGF
     float D = distribution_GGX(v_normal, halfway_vector, material.roughness);
     float G = geometry_smith(v_normal, view_vector, light_dir, material.roughness);
     vec3 F0 = vec3(0.04); 
     F0 = mix(F0, albedo_color.rgb, material.metalic);
     vec3 F = fresnel_schlick(max(dot(halfway_vector, view_vector), 0.0), F0);
+    
     vec3 numerator    = D * G * F;
     float denominator = 4.0 * max(dot(v_normal, view_vector), 0.0) * max(dot(v_normal, light_dir), 0.0)  + 0.0001;
     vec3 specular = numerator / denominator; 
 
-    return specular;
-}
+    vec3 ks = F;
+    vec3 kd = vec3(1.0) - ks;
+    kd *= 1.0 - material.metalic;
 
-vec3 Fr(PointLight light, vec3 light_dir, vec4 albedo_color) {
-    // Cook-Torrance BRDF
-    float kd = light.diffuse;
-    float ks = light.specular;
     vec3 f_lambert = albedo_color.rgb / PI;
-    vec3 f_cook_torrance = cook_torrance(light, light_dir, albedo_color);
 
-    
 
-    return kd * f_lambert + ks * f_cook_torrance;
+    return kd * f_lambert + specular;
 }
 
 float L(PointLight light) {
