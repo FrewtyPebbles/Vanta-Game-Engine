@@ -1,8 +1,9 @@
 import { Mat4, Vec4 } from "@vicimpa/glm";
 import Engine from "../engine.ts";
-import { Model } from "../graphics/assets.ts";
 import { Node3D } from "../node.ts";
 import { Skybox } from "./skybox.ts";
+import { Model } from "../graphics/assets/model.ts";
+import { CubeMapTexture } from "../graphics/assets/texture.ts";
 
 export class Object3D extends Node3D {
     model:Model;
@@ -11,8 +12,10 @@ export class Object3D extends Node3D {
         super(engine, name);
         this.model = model;
     }
-    render_class(view_matrix: Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4): void {
+    render_class(view_matrix: Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4, time:number, delta_time:number): void {
         this.model.draw_start();
+
+        this.on_update_callback(this, this.engine, time, delta_time);
 
         const skybox = this.get_parent_of_type(Skybox);
         if (skybox)
@@ -53,6 +56,16 @@ export class Object3D extends Node3D {
         }
         if (index)
             this.engine.graphics_manager.set_uniform("directional_lights_count", index);
+
+        // handle shadows
+        if (this.engine.graphics_manager.shadow_map.point_shadow_framebuffer) {
+            if ("depth" in this.engine.graphics_manager.shadow_map.point_shadow_framebuffer.textures) {
+                const depth_cubemap = this.engine.graphics_manager.shadow_map.point_shadow_framebuffer.textures["depth"] as CubeMapTexture;
+                this.engine.graphics_manager.set_uniform("depth_cubemap", depth_cubemap);
+            } else {
+                throw new Error(`A point shadow framebuffer is supplied, but there is no CUBEMAP_TEXTURE_DEPTH attachment named "depth". to use a point shadow framebuffer please supply a CUBEMAP_TEXTURE_DEPTH attachment named "depth".`);
+            }
+        }
 
         // pass the MVP matrix
         this.engine.graphics_manager.set_uniform("u_model", this.get_world_matrix());

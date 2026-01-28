@@ -1,6 +1,9 @@
 import { Vec3 } from "@vicimpa/glm";
-import { Material, Mesh, Model, Texture, TextureType } from "../assets.ts";
 import { GraphicsManager } from "../graphics_manager.ts";
+import { Texture, TextureType } from "../assets/texture.ts";
+import { Model } from "../assets/model.ts";
+import { Mesh } from "../assets/mesh.ts";
+import { Material } from "../assets/material.ts";
 
 interface OBJData {
     vertices: Float32Array;
@@ -103,7 +106,7 @@ export async function load_obj(gm:GraphicsManager, model_path:string, image_asse
         const res = await fetch(image_asset_path);
         if (res.ok) {
             const blob = await res.blob();
-            image_assets.push(new Texture(gm, await createImageBitmap(blob, { imageOrientation: 'flipY' }), TextureType.DEFAULT, {}));
+            image_assets.push(new Texture(gm, await createImageBitmap(blob, { imageOrientation: 'flipY' }), TextureType.COLOR, {}));
         } else {
             throw new Error(`The .obj image asset file at "${image_asset_path}" does not exist.`);
         }
@@ -121,7 +124,8 @@ export async function load_obj(gm:GraphicsManager, model_path:string, image_asse
 
     // Build the model
     var mesh = new Mesh(gm, obj.vertices, obj.normals, obj.uvs, obj.indices, obj.dimensions, obj.center);
-    var model = new Model(gm, mesh, new Material(gm, image_assets[0], 0.0, 0.0, 0.0));
+    var material = new Material(gm, image_assets[0], 0.0, 0.0, 0.0, null, gm.default_3d_shader_program);
+    var model = new Model(gm, mesh, material);
 
     return model;
 }

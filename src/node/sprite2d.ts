@@ -1,8 +1,9 @@
 import { Mat4 } from "@vicimpa/glm";
 import Engine from "../engine.ts";
-import { get_sprite_vao, Texture, VAOInfo } from "../graphics/assets.ts";
-import { ShaderProgram } from "../graphics/graphics_manager.ts";
 import { Node2D } from "../node.ts";
+import { ShaderProgram } from "../graphics/shader_program.ts";
+import { get_sprite_vao, VAOInfo } from "../graphics/assets/vaos.ts";
+import { Texture } from "../graphics/assets/texture.ts";
 
 export class Sprite2D extends Node2D {
     shader_program:ShaderProgram;
@@ -21,7 +22,7 @@ export class Sprite2D extends Node2D {
         this.sprite_texture = sprite_texture;
     }
 
-    render_class(view_matrix: Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4): void {
+    render_class(view_matrix: Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4, time:number, delta_time:number): void {
         if (!this.shader_program)
             throw Error(`Shader program not set for skybox.`);
 
@@ -31,6 +32,8 @@ export class Sprite2D extends Node2D {
         gm.gl.blendFunc(gm.gl.SRC_ALPHA, gm.gl.ONE_MINUS_SRC_ALPHA);
 
         this.shader_program.use();
+
+        this.on_update_callback(this, this.engine, time, delta_time);
 
         // bind the texture
         gm.set_uniform("sprite_texture", this.sprite_texture);

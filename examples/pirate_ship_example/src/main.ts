@@ -1,5 +1,5 @@
 import { Mat3, Mat4, Quat, Vec2, vec3, Vec3, Vec4 } from "@vicimpa/glm";
-import Engine, { load_obj, GraphicsManager, WebGLUniformType, Object3D, Skybox, InputManager, CubeMapTexture, Sprite2D, Texture, Node, TextureType, AttachmentType, PointLight } from "webgl2-engine";
+import Engine, { load_obj, GraphicsManager, WebGLUniformType, Object3D, Skybox, InputManager, Sprite2D, Node, AttachmentType, PointLight, Texture, CubeMapTexture, TextureType } from "webgl2-engine";
 
 
 var wobble_quat = new Quat();
@@ -71,6 +71,12 @@ async function startup(engine:Engine) {
 
     shader_prog_3d.add_shader(gm.gl.VERTEX_SHADER, await engine.UTIL.load_text_file("/assets/default_3d.vs"));
     shader_prog_3d.add_shader(gm.gl.FRAGMENT_SHADER, await engine.UTIL.load_text_file("/assets/default_3d.fs"));
+
+    // utility
+    shader_prog_3d.add_uniform("time", WebGLUniformType.F);
+
+    // SHADOWS
+    shader_prog_3d.add_uniform("depth_cubemap", WebGLUniformType.TEXTURE_CUBE_MAP);
 
     // MVP
     shader_prog_3d.add_uniform("u_model", WebGLUniformType.F4M);
@@ -161,19 +167,8 @@ async function startup(engine:Engine) {
 
     shader_prog_2d.build();
 
-    // Framebuffer
-    // const test_framebuffer = gm.create_framebuffer("test", 512, 512, {
-    //     default:{
-    //         name:"default",
-    //         type:AttachmentType.TEXTURE_COLOR
-    //     },
-    //     depth:{
-    //         name:"depth",
-    //         type:AttachmentType.TEXTURE_DEPTH
-    //     }
-    // });
-
     const skybox_texture = new CubeMapTexture(gm,
+        TextureType.COLOR,
         await engine.UTIL.load_image("/assets/skyboxes/learnopengl/top.jpg"),
         await engine.UTIL.load_image("/assets/skyboxes/learnopengl/bottom.jpg"),
         await engine.UTIL.load_image("/assets/skyboxes/learnopengl/front.jpg"),
@@ -182,7 +177,7 @@ async function startup(engine:Engine) {
         await engine.UTIL.load_image("/assets/skyboxes/learnopengl/right.jpg"),
     {}, 0);
 
-    const planet_texture = new Texture(gm, await engine.UTIL.load_image("/assets/sprites/planet.png"), TextureType.DEFAULT, {})
+    const planet_texture = new Texture(gm, await engine.UTIL.load_image("/assets/sprites/planet.png"), TextureType.COLOR, {})
 
     engine.root_node = new Skybox(engine, "default_skybox", skybox_texture, shader_prog_skybox, new Vec3(0.5));
 
@@ -191,18 +186,23 @@ async function startup(engine:Engine) {
     if (!pirate_ship_model)
         throw new Error("Failed to load pirate ship model.")
 
-    pirate_ship_model.set_shader_program(shader_prog_3d);
-
     const pirate_ship = new Object3D(engine, "pirate_ship", pirate_ship_model);
 
     pirate_ship.model.material.roughness = 1.0
     pirate_ship.model.material.metalic = 0.0
+    pirate_ship.model.material.blend_function = {sfactor:gm.gl.SRC_ALPHA, dfactor:gm.gl.ONE_MINUS_SRC_ALPHA};
+
+    pirate_ship.on_update_callback = (node, engine, time, delta_time) => {
+        const gm:GraphicsManager = engine.graphics_manager;
+
+        gm.set_uniform("time", time);
+    }
 
     const overlay_node = new Node(engine, "overlay")
 
     const planet_sprite = new Sprite2D(engine, "planet", planet_texture, shader_prog_2d);
 
-    const point_light = new PointLight(engine, "point_light", new Vec3(1.0,0.0,0.0), 1.0, 1.0, 1.0, 100.0, 200.0);
+    const point_light = new PointLight(engine, "point_light", new Vec3(1.0,1.0,1.0), 1.0, 1.0, 1.0, 100.0, 200.0);
 
     planet_sprite.scale = new Vec2(100);
 

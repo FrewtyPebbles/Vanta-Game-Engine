@@ -109,8 +109,7 @@ export class Node {
     }
     
     render(view_matrix:Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4, time:number, delta_time:number) {
-        this.on_update_callback(this, this.engine, time, delta_time)
-        this.render_class(view_matrix, projection_matrix_3d, projection_matrix_2d);
+        this.render_class(view_matrix, projection_matrix_3d, projection_matrix_2d, time, delta_time);
         this.render_children(view_matrix, projection_matrix_3d, projection_matrix_2d, time, delta_time);
     }
     
@@ -120,8 +119,8 @@ export class Node {
         }
     }
     // This is the function where the webgl2 state is set to render.
-    protected render_class(view_matrix: Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4): void {
-
+    protected render_class(view_matrix: Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4, time:number, delta_time:number): void {
+        this.on_update_callback(this, this.engine, time, delta_time);
     }
 }
 

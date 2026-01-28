@@ -1,8 +1,9 @@
 import { Mat4, Vec3 } from "@vicimpa/glm";
 import Engine from "../engine.ts";
-import { CubeMapTexture, get_skybox_vao, VAOInfo } from "../graphics/assets.ts";
-import { ShaderProgram } from "../graphics/graphics_manager.ts";
 import { Node } from "../node.ts";
+import { ShaderProgram } from "../graphics/shader_program.ts";
+import { CubeMapTexture } from "../graphics/assets/texture.ts";
+import { get_skybox_vao, VAOInfo } from "../graphics/assets/vaos.ts";
 
 export class Skybox extends Node {
     vao:VAOInfo;
@@ -17,7 +18,7 @@ export class Skybox extends Node {
         this.cubemap_texture = cubemap_texture;
         this.ambient_light = ambient_light;
     }
-    render_class(view_matrix: Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4): void {
+    render_class(view_matrix: Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4, time:number, delta_time:number): void {
         if (!this.shader_program)
             throw Error(`Shader program not set for skybox.`);
 
@@ -26,6 +27,8 @@ export class Skybox extends Node {
         gm.gl.depthFunc(gm.gl.LEQUAL);
 
         this.shader_program.use();
+
+        this.on_update_callback(this, this.engine, time, delta_time);
 
         // bind the texture
         gm.set_uniform("skybox_texture", this.cubemap_texture);

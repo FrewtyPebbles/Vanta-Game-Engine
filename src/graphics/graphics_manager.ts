@@ -1,36 +1,24 @@
 import { Vec3, Vec2, Mat4, Quat, Vec4 } from '@vicimpa/glm';
 import { Node3D, Node } from '../node.ts';
-import { CubeMapTexture, Texture, TextureType } from './assets.ts';
 import Engine from '../engine.ts';
 import { normalize_uniform_label } from './utility.ts';
+import { ShadowMap } from './lighting/shadow_map.ts';
+import { ShaderProgram, WebGLUniformType } from './shader_program.ts';
+import { AttachmentInfo, AttachmentType, Framebuffer } from './framebuffer.ts';
+import { CubeMapTexture, Texture } from './assets/texture.ts';
 
-// passthrough
-export const DEFAULT_VERTEX = `
-    attribute vec2 a_position;
-    attribute vec2 a_texcoord;
-    varying vec2 v_texcoord;
+import DEFAULT_2D_VERTEX_SHADER from '../shaders/default_2d.vs';
+import DEFAULT_2D_FRAGMENT_SHADER from '../shaders/default_2d.fs';
 
-    void main() {
-        gl_Position = vec4(a_position, 0.0, 1.0);
-        v_texcoord = a_texcoord;
-    }
-`;
+import DEFAULT_3D_VERTEX_SHADER from '../shaders/default_3d.vs';
+import DEFAULT_3D_FRAGMENT_SHADER from '../shaders/default_3d.fs';
 
-export const DEFAULT_FRAGMENT = `
-    precision mediump float;
-    uniform sampler2D u_texture;
-    varying vec2 v_texcoord;
+import DEFAULT_SKYBOX_VERTEX_SHADER from '../shaders/default_skybox.vs';
+import DEFAULT_SKYBOX_FRAGMENT_SHADER from '../shaders/default_skybox.fs';
 
-    void main() {
-        vec4 color = texture2D(u_texture, v_texcoord);
-        gl_FragColor = color;
-    }
-`;
+export type WebGLType = number;
 
 const MAX_DELTA_TIME = 0.1; // 100 ms
-
-export type WebGLShaderType = number;
-export type WebGLType = number;
 
 export interface WebGLVertexAttribute {
     label:string;
@@ -40,209 +28,6 @@ export interface WebGLVertexAttribute {
     dynamic:boolean;
     vertex_buffer:WebGLBuffer;
 };
-
-export enum WebGLUniformType {
-    TEXTURE_2D,
-    TEXTURE_CUBE_MAP,
-    STRUCT,
-    F,
-    I,
-    B,
-    F2V,
-    I2V,
-    F3V,
-    I3V,
-    F4V,
-    I4V,
-    F2M,
-    F3M,
-    F4M,
-}
-
-export interface WebGLUniform {
-    label:string;
-    type:WebGLUniformType;
-    texture_unit?:number;
-};
-
-export enum AttachmentType {
-    TEXTURE_COLOR,
-    TEXTURE_DEPTH,
-    TEXTURE_STENCIL,
-    TEXTURE_DEPTH_STENCIL
-}
-
-export interface AttachmentInfo {
-    name:string;
-    type:AttachmentType;
-    mipmap_level?:number;
-    texture_parameters?:{[key:number]:number};
-}
-
-export class Framebuffer {
-    name:string;
-    gl:WebGL2RenderingContext;
-    gm:GraphicsManager;
-    width:number;
-    height:number;
-    clear_color:Vec4;
-    webgl_frame_buffer:WebGLFramebuffer;
-    use_depth_buffer:boolean = false;
-    textures:{[name:string]:Texture} = {};
-
-    constructor(name:string, gm:GraphicsManager, gl:WebGL2RenderingContext, width:number, height:number, attachment_info:{[name:string]:AttachmentInfo}, clear_color:Vec4 = new Vec4(0,0,0,1)) {
-        this.name = name
-        this.gl = gl;
-        this.gm = gm;
-        this.name = name;
-        this.width = width;
-        this.height = height;
-        this.clear_color = clear_color;
-        this.webgl_frame_buffer = this.gl.createFramebuffer();
-
-        let color_attachment_count = 0;
-
-        let attachment_numbers:number[] = []
-
-        for (const [attachment_name, attachment] of Object.entries(attachment_info)) {
-            const is_depth_textures_attachment = attachment.type === AttachmentType.TEXTURE_DEPTH || 
-                attachment.type === AttachmentType.TEXTURE_DEPTH_STENCIL;
-            
-            var tex_parameters:{[key:number]:number} = 
-                attachment.texture_parameters === undefined ? {} : attachment.texture_parameters;
-            tex_parameters[gl.TEXTURE_MIN_FILTER] = gl.LINEAR;
-            tex_parameters[gl.TEXTURE_MAG_FILTER] = gl.LINEAR;
-            tex_parameters[gl.TEXTURE_WRAP_S] = gl.CLAMP_TO_EDGE;
-            tex_parameters[gl.TEXTURE_WRAP_T] = gl.CLAMP_TO_EDGE;
-            
-            gl.bindFramebuffer(gl.FRAMEBUFFER, this.webgl_frame_buffer);
-            if (is_depth_textures_attachment) {
-                this.use_depth_buffer = true;
-
-                this.textures[attachment_name] = new Texture(
-                    this.gm,
-                    this.width,
-                    this.height,
-                    TextureType.DEPTH,
-                    tex_parameters
-                );
-
-                gl.framebufferTexture2D(
-                    gl.FRAMEBUFFER,
-                    gl.DEPTH_ATTACHMENT,
-                    gl.TEXTURE_2D,
-                    this.textures[attachment_name].webgl_texture,
-                    attachment.mipmap_level === undefined ? 0 : attachment.mipmap_level
-                );
-            } else {
-                const attachment_num = gl.COLOR_ATTACHMENT0 + color_attachment_count;
-
-                this.textures[attachment_name] = new Texture(
-                    this.gm,
-                    this.width,
-                    this.height,
-                    TextureType.DEFAULT,
-                    tex_parameters
-                );
-                
-                gl.framebufferTexture2D(
-                    gl.FRAMEBUFFER,
-                    attachment_num,
-                    gl.TEXTURE_2D,
-                    this.textures[attachment_name].webgl_texture,
-                    attachment.mipmap_level === undefined ? 0 : attachment.mipmap_level
-                );
-
-                attachment_numbers.push(attachment_num);
-                color_attachment_count++;
-            }
-        }
-        this.gl.drawBuffers(attachment_numbers);
-        if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
-            throw Error(`Framebuffer incomplete, STATUS = ${gl.checkFramebufferStatus(gl.FRAMEBUFFER)}`);
-        }
-    }
-
-    use() {
-        this.gm.use_framebuffer(this.name);
-    }
-}
-
-export class ShaderProgram {
-    gl:WebGLRenderingContext;
-    gm:GraphicsManager;
-    name:string;
-    shaders:Array<WebGLShader> = [];
-    webgl_shader_program:WebGLProgram|null = null;
-    uniforms:{[key:string]:WebGLUniform} = {};
-    uniform_locs:{[key:string]:WebGLUniformLocation|null} = {};
-    texture_counter:number = 0;
-
-    constructor(name:string, gm:GraphicsManager, gl:WebGLRenderingContext) {
-        this.gm = gm;
-        this.gl = gl;
-        this.name = name;
-    }
-
-    add_shader(type: WebGLShaderType, source: string) {
-        const shader = this.gl.createShader(type)!;
-        this.gl.shaderSource(shader, source);
-        this.gl.compileShader(shader);
-        if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
-            console.error(this.gl.getShaderInfoLog(shader));
-        }
-        this.shaders.push(shader);
-    }
-
-    add_uniform(label:string, uniform_type:WebGLUniformType) {
-        label = normalize_uniform_label(label);
-        this.uniforms[label] = {
-            label,
-            type:uniform_type,
-        }
-
-        if (uniform_type === WebGLUniformType.TEXTURE_2D || uniform_type === WebGLUniformType.TEXTURE_CUBE_MAP) {
-            this.uniforms[label].texture_unit = this.texture_counter;
-            this.texture_counter += 1;
-        }
-    }
-
-    build() {
-        this.webgl_shader_program = this.gl.createProgram()!;
-        
-        for (let shader of this.shaders) {
-            this.gl.attachShader(this.webgl_shader_program, shader);
-        }
-        
-        this.gl.linkProgram(this.webgl_shader_program);
-        if (!this.gl.getProgramParameter(this.webgl_shader_program, this.gl.LINK_STATUS)) {
-            console.error(this.gl.getProgramInfoLog(this.webgl_shader_program));
-        }
-
-        this.use();
-        // find uniform locs
-
-        for (let [label, uniform] of Object.entries(this.uniforms)) {
-            if (label.startsWith("[]"))
-                continue;
-
-            console.log(this.webgl_shader_program, label);
-            
-            const loc = this.gl.getUniformLocation(this.webgl_shader_program!, label);
-            if (!loc) {
-                console.warn(`Uniform "${label}" not in use in shader program "${this.name}".`)
-            }
-
-            this.uniform_locs[label] = loc;
-        }
-
-        this.gm.clear_shader();
-    }
-
-    use() {
-        this.gm.use_shader(this.name);
-    }
-}
 
 export class GraphicsManager {
     engine:Engine;
@@ -254,13 +39,43 @@ export class GraphicsManager {
     framebuffer:Framebuffer|null = null;
     vertex_attributes:{[key:string]:WebGLVertexAttribute} = {};
     vertex_count:number = 0;
-
+    
     prev_time:number = 0;
+    
+    // SHADOW MAPPING
+    shadow_map:ShadowMap;
 
+    // DEFAULT SHADERS
+    default_2d_shader_program:ShaderProgram;
+    default_3d_shader_program:ShaderProgram;
+    default_skybox_shader_program:ShaderProgram;
+    
     constructor(engine:Engine, canvas:HTMLCanvasElement) {
         this.engine = engine;
         this.canvas = canvas;
-        this.gl = canvas.getContext("webgl2")! as WebGL2RenderingContext;
+        this.gl = canvas.getContext("webgl2", {
+            colorSpace: 'srgb',
+            antialias: true
+        })! as WebGL2RenderingContext;
+
+        this.default_2d_shader_program = this.create_default_2d_shader_program();
+        this.default_3d_shader_program = this.create_default_3d_shader_program();
+        this.default_skybox_shader_program = this.create_default_skybox_shader_program();
+
+        this.shadow_map = new ShadowMap(
+            this.engine,
+            1040,
+            this.create_framebuffer(
+                "depth",
+                512,
+                512,
+                [
+                    {
+                        name:"depth",
+                        type:AttachmentType.CUBEMAP_TEXTURE_DEPTH
+                    }
+                ]
+            ));
     }
 
     webgl_enabled():boolean {
@@ -318,7 +133,7 @@ export class GraphicsManager {
         this.shader_program = null;
     }
 
-    create_framebuffer(name:string, width:number, height:number, attachment_info:{ [name: string]: AttachmentInfo }) {
+    create_framebuffer(name:string, width:number, height:number, attachment_info:AttachmentInfo[]) {
         const framebuffer = new Framebuffer(name, this, this.gl, width, height, attachment_info);
         this.framebuffers[name] = framebuffer;
         return framebuffer;
@@ -331,6 +146,7 @@ export class GraphicsManager {
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffer.webgl_frame_buffer);
         this.gl.viewport(0, 0, this.framebuffer.width, this.framebuffer.height);
         if (this.framebuffer.use_depth_buffer) {
+            this.gl.clear(this.gl.DEPTH_BUFFER_BIT)
             this.gl.enable(this.gl.DEPTH_TEST);
         }
         const cc = this.framebuffer.clear_color;
@@ -382,7 +198,7 @@ export class GraphicsManager {
 
             case WebGLUniformType.TEXTURE_CUBE_MAP:
                 this.gl.activeTexture(this.gl.TEXTURE0 + uniform.texture_unit!);
-                this.gl.bindTexture(this.gl.TEXTURE_CUBE_MAP, (value as CubeMapTexture).texture);
+                this.gl.bindTexture(this.gl.TEXTURE_CUBE_MAP, (value as CubeMapTexture).webgl_texture);
                 this.gl.uniform1i(this.shader_program.uniform_locs[label], uniform.texture_unit!);
                 break;
 
@@ -447,15 +263,18 @@ export class GraphicsManager {
         this.render_frame(update_callback);
     }
 
-    private render_frame(update_callback:(gm:GraphicsManager, time:number, delta_time:number)=>void, time:number = 0):number {
+    private render_frame(update_callback:(gm:GraphicsManager, time:number, delta_time:number)=>void, time:number = 0):number {        
         const delta_time = Math.min((time - this.prev_time) * 0.001, MAX_DELTA_TIME); // ms to seconds
         this.prev_time = time;
         update_callback(this, time, delta_time);
         
         this.resize_canvas();
+
+        this.shadow_map.render(time, delta_time);
+        
         this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
         this.gl.clearColor(0, 0, 0, 0);
-        this.gl.clear(this.gl.COLOR_BUFFER_BIT);        
+        this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 
         // Render node heirarchy.
         const ortho_projection = (new Mat4()).orthoNO(0, this.canvas.width, 0, this.canvas.height, -1, 1);
@@ -467,5 +286,116 @@ export class GraphicsManager {
         );
         
         return requestAnimationFrame((new_time)=>{return this.render_frame(update_callback, new_time);});
+    }
+
+    create_default_2d_shader_program():ShaderProgram {
+        const shader_prog_2d = this.create_shader_program("2D");
+
+        shader_prog_2d.add_shader(this.gl.VERTEX_SHADER, DEFAULT_2D_VERTEX_SHADER);
+        shader_prog_2d.add_shader(this.gl.FRAGMENT_SHADER, DEFAULT_2D_FRAGMENT_SHADER);
+
+        shader_prog_2d.add_uniform("u_model", WebGLUniformType.F4M);
+        shader_prog_2d.add_uniform("u_projection", WebGLUniformType.F4M);
+
+        shader_prog_2d.add_uniform("sprite_texture", WebGLUniformType.TEXTURE_2D);
+
+        shader_prog_2d.build();
+
+        return shader_prog_2d;
+    }
+
+    create_default_3d_shader_program():ShaderProgram {
+
+        const shader_prog_3d = this.create_shader_program("3D");
+
+        shader_prog_3d.add_shader(this.gl.VERTEX_SHADER, DEFAULT_3D_VERTEX_SHADER);
+        shader_prog_3d.add_shader(this.gl.FRAGMENT_SHADER, DEFAULT_3D_FRAGMENT_SHADER);
+
+        // utility
+        shader_prog_3d.add_uniform("time", WebGLUniformType.F);
+
+        // SHADOWS
+        shader_prog_3d.add_uniform("depth_cubemap", WebGLUniformType.TEXTURE_CUBE_MAP);
+
+        // MVP
+        shader_prog_3d.add_uniform("u_model", WebGLUniformType.F4M);
+        shader_prog_3d.add_uniform("u_view", WebGLUniformType.F4M);
+        shader_prog_3d.add_uniform("u_projection", WebGLUniformType.F4M);
+
+        // environment
+        shader_prog_3d.add_uniform("environment.ambient_light", WebGLUniformType.F3V);
+
+        // camera
+        shader_prog_3d.add_uniform("camera_position", WebGLUniformType.F3V);
+
+        // lights
+        shader_prog_3d.add_uniform("point_lights_count", WebGLUniformType.I);
+        shader_prog_3d.add_uniform("spot_lights_count", WebGLUniformType.I);
+        shader_prog_3d.add_uniform("directional_lights_count", WebGLUniformType.I);
+
+        /// point lights
+        shader_prog_3d.add_uniform("point_lights[].position", WebGLUniformType.F3V);
+        shader_prog_3d.add_uniform("point_lights[].color", WebGLUniformType.F3V);
+        shader_prog_3d.add_uniform("point_lights[].range", WebGLUniformType.F);
+        shader_prog_3d.add_uniform("point_lights[].energy", WebGLUniformType.F);
+        shader_prog_3d.add_uniform("point_lights[].ambient", WebGLUniformType.F);
+        shader_prog_3d.add_uniform("point_lights[].diffuse", WebGLUniformType.F);
+        shader_prog_3d.add_uniform("point_lights[].specular", WebGLUniformType.F);
+
+        /// spot lights
+        shader_prog_3d.add_uniform("spot_lights[].position", WebGLUniformType.F3V);
+        shader_prog_3d.add_uniform("spot_lights[].color", WebGLUniformType.F3V);
+        shader_prog_3d.add_uniform("spot_lights[].rotation", WebGLUniformType.F4M);
+        shader_prog_3d.add_uniform("spot_lights[].range", WebGLUniformType.F);
+        shader_prog_3d.add_uniform("spot_lights[].energy", WebGLUniformType.F);
+        shader_prog_3d.add_uniform("spot_lights[].cookie_radius", WebGLUniformType.F);
+        shader_prog_3d.add_uniform("spot_lights[].ambient", WebGLUniformType.F);
+        shader_prog_3d.add_uniform("spot_lights[].diffuse", WebGLUniformType.F);
+        shader_prog_3d.add_uniform("spot_lights[].specular", WebGLUniformType.F);
+
+        /// directional lights
+        shader_prog_3d.add_uniform("directional_lights[].rotation", WebGLUniformType.F4M);
+        shader_prog_3d.add_uniform("directional_lights[].color", WebGLUniformType.F3V);
+        shader_prog_3d.add_uniform("directional_lights[].energy", WebGLUniformType.F);
+        shader_prog_3d.add_uniform("directional_lights[].ambient", WebGLUniformType.F);
+        shader_prog_3d.add_uniform("directional_lights[].diffuse", WebGLUniformType.F);
+        shader_prog_3d.add_uniform("directional_lights[].specular", WebGLUniformType.F);
+
+        // material
+        shader_prog_3d.add_uniform("material.has_normal_texture", WebGLUniformType.B);
+        shader_prog_3d.add_uniform("material.has_albedo_texture", WebGLUniformType.B);
+        shader_prog_3d.add_uniform("material.albedo", WebGLUniformType.F3V);
+        shader_prog_3d.add_uniform("material.has_metalic_texture", WebGLUniformType.B);
+        shader_prog_3d.add_uniform("material.metalic", WebGLUniformType.F);
+        shader_prog_3d.add_uniform("material.has_roughness_texture", WebGLUniformType.B);
+        shader_prog_3d.add_uniform("material.roughness", WebGLUniformType.F);
+        shader_prog_3d.add_uniform("material.has_ao_texture", WebGLUniformType.B);
+        shader_prog_3d.add_uniform("material.ao", WebGLUniformType.F);
+
+        shader_prog_3d.add_uniform("material_texture_albedo", WebGLUniformType.TEXTURE_2D);
+        shader_prog_3d.add_uniform("material_texture_normal", WebGLUniformType.TEXTURE_2D);
+        shader_prog_3d.add_uniform("material_texture_metalic", WebGLUniformType.TEXTURE_2D);
+        shader_prog_3d.add_uniform("material_texture_roughness", WebGLUniformType.TEXTURE_2D);
+        shader_prog_3d.add_uniform("material_texture_ao", WebGLUniformType.TEXTURE_2D);
+
+        shader_prog_3d.build();
+
+        return shader_prog_3d;
+    }
+
+    create_default_skybox_shader_program() {
+        const shader_prog_skybox = this.create_shader_program("SKYBOX");
+
+        shader_prog_skybox.add_shader(this.gl.VERTEX_SHADER, DEFAULT_SKYBOX_VERTEX_SHADER);
+        shader_prog_skybox.add_shader(this.gl.FRAGMENT_SHADER, DEFAULT_SKYBOX_FRAGMENT_SHADER);
+
+        shader_prog_skybox.add_uniform("u_view", WebGLUniformType.F4M);
+        shader_prog_skybox.add_uniform("u_projection", WebGLUniformType.F4M);
+
+        shader_prog_skybox.add_uniform("skybox_texture", WebGLUniformType.TEXTURE_CUBE_MAP);
+
+        shader_prog_skybox.build();
+
+        return shader_prog_skybox;
     }
 }

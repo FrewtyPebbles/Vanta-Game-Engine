@@ -1,7 +1,7 @@
 import { Mat4, Vec3, Vec4 } from "@vicimpa/glm";
 import Engine from "../engine.ts";
 import { Node, Node3D } from "../node.ts";
-import { ShaderProgram } from "../graphics/graphics_manager.ts";
+import { ShaderProgram } from "../graphics/shader_program.ts";
 
 export class Light extends Node3D {
     color:Vec3;
