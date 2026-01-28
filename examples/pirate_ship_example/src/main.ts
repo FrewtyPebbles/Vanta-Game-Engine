@@ -10,50 +10,43 @@ var rotation_quat = new Quat();
 
 function update(engine:Engine, time:number, delta_time:number) {
 
-    const im:InputManager = engine.input_manager;
-    const gm:GraphicsManager = engine.graphics_manager;
+    // const im:InputManager = engine.input_manager;
+    // const gm:GraphicsManager = engine.graphics_manager;
 
-    const pirate_ship:Object3D|null = engine.get_node("pirate_ship") as Object3D|null;
-    const anchor:Object3D|null = engine.get_node("anchor") as Object3D|null;
-    const point_light:PointLight|null = engine.get_node("point_light") as PointLight|null;
-    const planet_sprite:Sprite2D|null = engine.get_node("planet") as Sprite2D|null;
+    // const pirate_ship:Object3D|null = engine.get_node("pirate_ship") as Object3D|null;
 
-    if (!pirate_ship)
-        return;
+    // if (!pirate_ship)
+    //     return;
 
-    if (im.is_key_down("KeyA"))
-        rotation_quat.mul(new Quat().setAxisAngle(new Vec3(0,1,0), 1 * delta_time));
-    if (im.is_key_down("KeyD"))
-        rotation_quat.mul(new Quat().setAxisAngle(new Vec3(0,1,0), -1 * delta_time));
+    // if (im.is_key_down("KeyA"))
+    //     rotation_quat.mul(new Quat().setAxisAngle(new Vec3(0,1,0), 1 * delta_time));
+    // if (im.is_key_down("KeyD"))
+    //     rotation_quat.mul(new Quat().setAxisAngle(new Vec3(0,1,0), -1 * delta_time));
     
-    const forward = new Vec3(-1, 0, 0).applyQuat(rotation_quat);
-    const right = new Vec3(0, 0, -1).applyQuat(rotation_quat);
+    // const forward = new Vec3(-1, 0, 0).applyQuat(rotation_quat);
+    // const right = new Vec3(0, 0, -1).applyQuat(rotation_quat);
 
-    const wobble_pitch = Math.sin(time * 0.002) * 0.15;
-    const wobble_roll  = Math.cos(time * 0.002) * 0.10;
+    // const wobble_pitch = Math.sin(time * 0.002) * 0.15;
+    // const wobble_roll  = Math.cos(time * 0.002) * 0.10;
 
-    // rebuild wobble every frame
-    wobble_quat = new Quat()
-        .setAxisAngle(forward, wobble_pitch)
-        .mul(new Quat().setAxisAngle(right, wobble_roll));
+    // // rebuild wobble every frame
+    // wobble_quat = new Quat()
+    //     .setAxisAngle(forward, wobble_pitch)
+    //     .mul(new Quat().setAxisAngle(right, wobble_roll));
 
-    if (im.is_key_down("KeyW")) {        
-        pirate_ship.position.add(forward.clone().mul(100 * delta_time));
-    }
+    // if (im.is_key_down("KeyW")) {        
+    //     pirate_ship.position.add(forward.clone().mul(100 * delta_time));
+    // }
 
-    if (im.is_key_down("KeyS")) {
-        pirate_ship.position.add(forward.clone().mul(-100 * delta_time));
-    }
+    // if (im.is_key_down("KeyS")) {
+    //     pirate_ship.position.add(forward.clone().mul(-100 * delta_time));
+    // }
 
-    var local_mesh_center = pirate_ship.model.mesh.center;
-    var mesh_center = new Vec4(local_mesh_center.x, local_mesh_center.y, local_mesh_center.z, 1.0).applyMat4(pirate_ship.get_world_matrix())
-    engine.main_camera.rotation.fromMat3(new Mat3().fromMat4(new Mat4().lookAt(engine.main_camera.position, mesh_center, new Vec3(0,1,0)).invert()));
+    // var local_mesh_center = pirate_ship.model.mesh.center;
+    // var mesh_center = new Vec4(local_mesh_center.x, local_mesh_center.y, local_mesh_center.z, 1.0).applyMat4(pirate_ship.get_world_matrix())
+    // engine.main_camera.rotation.fromMat3(new Mat3().fromMat4(new Mat4().lookAt(engine.main_camera.position, mesh_center, new Vec3(0,1,0)).invert()));
     
-    pirate_ship.rotation = new Quat().mul(wobble_quat).mul(rotation_quat);
-
-    if (anchor) {
-        anchor.position.y += Math.cos(time * 0.01);
-    }
+    // pirate_ship.rotation = new Quat().mul(wobble_quat).mul(rotation_quat);
 }
 
 async function startup(engine:Engine) {
@@ -184,15 +177,9 @@ async function startup(engine:Engine) {
     anchor.model.material.blend_function = {sfactor:gm.gl.SRC_ALPHA, dfactor:gm.gl.ONE_MINUS_SRC_ALPHA};
     anchor.model.material.set_shader_program(shader_prog_submerged);
 
-    anchor.on_update_callback = (node, engine, time, delta_time) => {
-        const gm:GraphicsManager = engine.graphics_manager;
-        gm.set_uniform("time", time);
-    }
+    await anchor.set_lua_file("/assets/src/anchor.lua");
 
-    pirate_ship.on_update_callback = (node, engine, time, delta_time) => {
-        const gm:GraphicsManager = engine.graphics_manager;
-        gm.set_uniform("time", time);
-    }
+    await pirate_ship.set_lua_file("/assets/src/pirate_ship.lua");
 
     const point_light = new PointLight(engine, "point_light", new Vec3(1.0,1.0,1.0), 1.0, 1.0, 1.0, 10.0, 1000.0);
     

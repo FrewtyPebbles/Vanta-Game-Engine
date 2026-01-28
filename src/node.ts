@@ -9,17 +9,44 @@ export class Node {
     name:string;
     parent:Node|null = null;
     children:Array<Node> = [];
+    
+    // CALLBACKS
     on_ready_callback:(node:Node, engine:Engine) => void = (node, engine) =>{};
     on_removed_callback:(node:Node, engine:Engine, parent:Node) => void = (node, engine, parent) =>{};
     on_update_callback:(node:Node, engine:Engine, time:number, delta_time:number) => void = (node, engine:Engine, time:number, delta_time:number) =>{};
-
+    private lua_url:string|null = null;
+    
     constructor(engine:Engine, name:string) {
         this.engine = engine
         this.name = name;
     }
 
+    async set_lua_file(url:string) {
+        this.lua_url = url;
+        await this.engine.hook_manager.add_on_ready_callback(url);
+        await this.engine.hook_manager.add_on_removed_callback(url);
+        await this.engine.hook_manager.add_on_update_callback(url);
+    }
+
+    protected on_ready(node:this, engine:Engine) {
+        this.on_ready_callback(node, engine);
+        if (this.lua_url !== null)
+            this.engine.hook_manager.call_on_ready_callback(this.lua_url, node, engine);
+    }
+
+    protected on_removed(node:this, engine:Engine, parent:Node) {
+        this.on_removed_callback(node, engine, parent);
+        if (this.lua_url !== null)
+            this.engine.hook_manager.call_on_removed_callback(this.lua_url, node, engine, parent);
+    }
+
+    protected on_update(node:this, engine:Engine, time:number, delta_time:number) {
+        this.on_update_callback(node, engine, time, delta_time);
+        if (this.lua_url !== null)
+            this.engine.hook_manager.call_on_update_callback(this.lua_url, node, engine, time, delta_time);
+    }
+
     protected on_parented() {}
-    protected on_removed(parent:Node) {}
 
     has_child(node:Node|string):boolean {
         if (node instanceof Node)
@@ -65,7 +92,7 @@ export class Node {
 
         this.children.push(node);
         node.parent = this;
-        node.on_ready_callback(this, this.engine);
+        node.on_ready(this, this.engine);
         node.on_parented();
     }
 
@@ -83,6 +110,7 @@ export class Node {
 
             // remove parent
             const node_instance = this.engine.get_node(node);
+
             if (node_instance)
                 node_instance.parent = null;
 
@@ -103,8 +131,7 @@ export class Node {
             }
         }
         if (node instanceof Node) {
-            node.on_removed_callback(node, this.engine, this);
-            node.on_removed(this);
+            node.on_removed(node, this.engine, this);
         }
     }
     
@@ -120,7 +147,7 @@ export class Node {
     }
     // This is the function where the webgl2 state is set to render.
     protected render_class(view_matrix: Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4, time:number, delta_time:number): void {
-        this.on_update_callback(this, this.engine, time, delta_time);
+        this.on_update(this, this.engine, time, delta_time);
     }
 }
 

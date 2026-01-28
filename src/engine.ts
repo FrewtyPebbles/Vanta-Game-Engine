@@ -4,12 +4,14 @@ import { Node } from "./node.ts";
 import { InputManager } from "./input/input_manager.ts";
 import Utility from "./utility.ts";
 import { DirectionalLight, Light, PointLight, SpotLight } from "./node/lights.ts";
+import { HookManager } from "./hook_manager.ts";
 
 
 export default class Engine {
     canvas:HTMLCanvasElement;
     graphics_manager:GraphicsManager;
     input_manager:InputManager;
+    hook_manager:HookManager;
 
     // This keeps track of all lights in the scene tree,
     // makes it more efficient to render all the lights.
@@ -26,6 +28,19 @@ export default class Engine {
     // Node Heirarchy
     root_node:Node = new Node(this, "root_node");
     main_camera:Camera3D = new Camera3D(this, "camera0");
+
+    constructor(
+        canvas:HTMLCanvasElement,
+        on_global_startup_callback:(engine:Engine) => Promise<void> = async(engine) => {},
+        on_global_update_callback:(engine:Engine, time:number, delta_time:number) => void = (engine, time, delta_time) => {},
+    ) {
+        this.canvas = canvas;
+        this.graphics_manager = new GraphicsManager(this, this.canvas);
+        this.input_manager = new InputManager(this);
+        this.hook_manager = new HookManager(this);
+        this.on_global_startup_callback = on_global_startup_callback;
+        this.on_global_update_callback = on_global_update_callback;
+    }
 
     get_node(name:string):Node|null {
         // traverse scene tree until we find the node.
@@ -45,20 +60,6 @@ export default class Engine {
         }
 
         return null;
-    }
-
-
-
-    constructor(
-        canvas:HTMLCanvasElement,
-        on_global_startup_callback:(engine:Engine) => Promise<void> = async(engine) => {},
-        on_global_update_callback:(engine:Engine, time:number, delta_time:number) => void = (engine, time, delta_time) => {},
-    ) {
-        this.canvas = canvas;
-        this.graphics_manager = new GraphicsManager(this, this.canvas);
-        this.input_manager = new InputManager(this);
-        this.on_global_startup_callback = on_global_startup_callback;
-        this.on_global_update_callback = on_global_update_callback;
     }
 
     async start() {

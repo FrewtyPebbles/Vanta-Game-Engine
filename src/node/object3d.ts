@@ -15,7 +15,7 @@ export class Object3D extends Node3D {
     render_class(view_matrix: Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4, time:number, delta_time:number): void {
         this.model.draw_start();
 
-        this.on_update_callback(this, this.engine, time, delta_time);
+        this.on_update(this, this.engine, time, delta_time);
 
         const skybox = this.get_parent_of_type(Skybox);
         if (skybox)

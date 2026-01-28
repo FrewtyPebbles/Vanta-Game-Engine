@@ -33,7 +33,7 @@ export class Skybox extends Node {
 
         this.shader_program.use();
 
-        this.on_update_callback(this, this.engine, time, delta_time);
+        this.on_update(this, this.engine, time, delta_time);
 
         // bind the texture
         gm.set_uniform("skybox_texture", this.cubemap_texture);

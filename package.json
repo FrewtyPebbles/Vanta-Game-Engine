@@ -38,5 +38,8 @@
   },
   "peerDependencies": {
     "@vicimpa/glm": "^0.1.10"
+  },
+  "dependencies": {
+    "wasmoon": "^1.16.0"
   }
 }

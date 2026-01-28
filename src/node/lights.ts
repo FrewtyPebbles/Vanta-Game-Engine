@@ -75,7 +75,8 @@ export class PointLight extends Light {
         this.engine.point_lights.push(this);
     }
 
-    protected on_removed(parent: Node): void {
+    protected on_removed(node:this, engine:Engine, parent:Node): void {
+        super.on_removed(node, engine, parent)
         let light_index = this.engine.point_lights.indexOf(this);
         if (light_index > -1) {
             this.engine.point_lights.splice(light_index, 1);
@@ -129,7 +130,7 @@ export class SpotLight extends Light {
         this.engine.spot_lights.push(this);
     }
 
-    protected on_removed(parent: Node): void {
+    protected on_removed(node:this, engine:Engine, parent:Node): void {
         let light_index = this.engine.spot_lights.indexOf(this);
         if (light_index > -1) {
             this.engine.spot_lights.splice(light_index, 1);
@@ -166,7 +167,7 @@ export class DirectionalLight extends Light {
         this.engine.directional_lights.push(this);
     }
 
-    protected on_removed(parent: Node): void {
+    protected on_removed(node:this, engine:Engine, parent:Node): void {
         let light_index = this.engine.directional_lights.indexOf(this);
         if (light_index > -1) {
             this.engine.directional_lights.splice(light_index, 1);

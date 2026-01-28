@@ -18,6 +18,7 @@ export * from "./graphics/utility.ts";
 export * from "./input/input_manager.ts"
 export * from "./utility.ts"
 export * from "./engine.ts"
+export * from "./hook_manager.ts"
 import Engine from './engine.ts';
 
 export default Engine;
