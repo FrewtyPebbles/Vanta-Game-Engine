@@ -92,47 +92,71 @@ uniform samplerCube depth_cubemap;
 uniform float time;
 
 float L(PointLight light);
+float L(DirectionalLight light);
 
 float distribution_GGX(vec3 N, vec3 H, float a);
 float geometry_schlick_GGX(float NdotV, float k);
 float geometry_smith(vec3 N, vec3 V, vec3 L, float k);
 vec3 fresnel_schlick(float cosTheta, vec3 F0);
 
-vec4 waves(vec4 base_color, float height);
-
 vec3 Fr(vec3 light_dir, vec4 albedo_color);
+
+vec3 calculate_point_lighting(vec4 base_color);
+
+vec3 calculate_directional_lighting(vec4 base_color);
+
+vec3 calculate_lighting(vec4 base_color);
+
+vec4 waves(vec4 base_color, float height);
 
 void main() {
     vec4 base_color = texture(material_texture_albedo, v_uv);
 
-    vec3 total_specular_diffuse = vec3(0.0,0.0,0.0);
+    vec3 lighting = calculate_lighting(base_color);
+
+    base_color.rgb = environment.ambient_light * base_color.rgb + lighting;
+
+    base_color = waves(base_color, 30.0);
+
+    frag_color = base_color;
+}
+
+vec3 calculate_lighting(vec4 base_color) {
+    vec3 cumulative_radiance = vec3(0.0,0.0,0.0);
+
+    cumulative_radiance += calculate_point_lighting(base_color);
+
+    cumulative_radiance += calculate_directional_lighting(base_color);
+
+    return cumulative_radiance;
+}
+
+vec3 calculate_point_lighting(vec4 base_color) {
+    vec3 cumulative_radiance = vec3(0.0,0.0,0.0);
 
     for (int i = 0; i < point_lights_count; i++) {
         PointLight light = point_lights[i];
         vec3 light_dir = normalize(light.position - v_frag_pos);
         float n_dot_l = max(dot(v_normal, light_dir), 0.0);
         vec3 product = Fr(light_dir, base_color) * L(light) * n_dot_l;
-        total_specular_diffuse += product * light.color;
+        cumulative_radiance += product * light.color;
     }
 
-    base_color.rgb = environment.ambient_light * base_color.rgb + total_specular_diffuse;
-    base_color = waves(base_color, 30.0);
-    frag_color = base_color;
+    return cumulative_radiance;
 }
 
-vec4 waves(vec4 base_color, float height) {
-    float wave = height + sin((time * 0.025 + v_frag_pos.x) * 0.25);
-    if (v_frag_pos.y < wave) {
-        base_color.a = max(0.0, v_frag_pos.y) / wave;
-        if (v_frag_pos.y < wave - 5.0) {
-            base_color.b += max(0.0, v_frag_pos.y) / wave;
-            base_color.r -= max(0.0, v_frag_pos.y) / wave;
-            base_color.g -= max(0.0, v_frag_pos.y) / wave;
-        } else {
-            base_color.rgb = mix(vec3(0.0, 0.0, 1.0), vec3(1.0), max(0.0, (v_frag_pos.y - (wave - 5.0)) / 5.0));
-        }
+vec3 calculate_directional_lighting(vec4 base_color) {
+    vec3 cumulative_radiance = vec3(0.0,0.0,0.0);
+
+    for (int i = 0; i < directional_lights_count; i++) {
+        DirectionalLight light = directional_lights[i];
+        vec3 light_dir = (light.rotation * vec4(1.0,0.0,0.0, 0.0)).xyz;
+        float n_dot_l = max(dot(v_normal, light_dir), 0.0);
+        vec3 product = Fr(light_dir, base_color) * L(light) * n_dot_l;
+        cumulative_radiance += product * light.color;
     }
-    return base_color;
+
+    return cumulative_radiance;
 }
 
 vec3 Fr(vec3 light_dir, vec4 albedo_color) {
@@ -167,6 +191,10 @@ float L(PointLight light) {
     // Standard ranged attenuation
     float attenuation = clamp(1.0 - light_distance / light.range, 0.0, 1.0);
     return light.energy * attenuation * attenuation;
+}
+
+float L(DirectionalLight light) {
+    return light.energy;
 }
 
 float distribution_GGX(vec3 N, vec3 H, float a)
@@ -204,4 +232,19 @@ float geometry_smith(vec3 N, vec3 V, vec3 L, float k)
 vec3 fresnel_schlick(float cosTheta, vec3 F0)
 {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+vec4 waves(vec4 base_color, float height) {
+    float wave = height + sin((time * 0.025 + v_frag_pos.x) * 0.25);
+    if (v_frag_pos.y < wave) {
+        base_color.a = max(0.0, v_frag_pos.y) / wave;
+        if (v_frag_pos.y < wave - 5.0) {
+            base_color.b += max(0.0, v_frag_pos.y) / wave;
+            base_color.r -= max(0.0, v_frag_pos.y) / wave;
+            base_color.g -= max(0.0, v_frag_pos.y) / wave;
+        } else {
+            base_color.rgb = mix(vec3(0.0, 0.0, 1.0), vec3(1.0), max(0.0, (v_frag_pos.y - (wave - 5.0)) / 5.0));
+        }
+    }
+    return base_color;
 }

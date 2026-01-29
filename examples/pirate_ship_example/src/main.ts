@@ -1,5 +1,5 @@
 import { Mat3, Mat4, Quat, Vec2, vec3, Vec3, Vec4 } from "@vicimpa/glm";
-import Engine, { load_obj, GraphicsManager, WebGLUniformType, Object3D, Skybox, InputManager, Sprite2D, Node, AttachmentType, PointLight, Texture, CubeMapTexture, TextureType, Camera3D } from "webgl2-engine";
+import Engine, { load_obj, GraphicsManager, WebGLUniformType, Object3D, Skybox, InputManager, Sprite2D, Node, AttachmentType, PointLight, Texture, CubeMapTexture, TextureType, Camera3D, DirectionalLight } from "webgl2-engine";
 
 async function startup(engine:Engine) {
 
@@ -138,9 +138,17 @@ async function startup(engine:Engine) {
 
     const point_light = new PointLight(engine, "point_light", new Vec3(1.0,1.0,1.0), 1.0, 1.0, 1.0, 10.0, 1000.0);
     
+    const ocean_light = new DirectionalLight(engine, "ocean_light", new Vec3(0.0,0.0,1.0), 1.0, 1.0, 1.0, 7.0)
+    const sun_light = new DirectionalLight(engine, "sun_light", new Vec3(1.0,1.0,0.0), 1.0, 1.0, 1.0, 5.0)
+
     engine.main_scene.root_node.push_child(pirate_ship);
     engine.main_scene.root_node.push_child(anchor);
     engine.main_scene.root_node.push_child(point_light);
+    engine.main_scene.root_node.push_child(ocean_light);
+    engine.main_scene.root_node.push_child(sun_light);
+
+    ocean_light.rotation.rotateZ(-90 * (Math.PI / 180))
+    sun_light.rotation.rotateZ(100 * (Math.PI / 180))
 
     point_light.position = new Vec3(0, 100, 0)
     
