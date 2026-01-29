@@ -72,14 +72,14 @@ export class PointLight extends Light {
     }
 
     protected on_parented(): void {
-        this.engine.point_lights.push(this);
+        this.engine.main_scene.point_lights.push(this);
     }
 
     protected on_removed(node:this, engine:Engine, parent:Node): void {
         super.on_removed(node, engine, parent)
-        let light_index = this.engine.point_lights.indexOf(this);
+        let light_index = this.engine.main_scene.point_lights.indexOf(this);
         if (light_index > -1) {
-            this.engine.point_lights.splice(light_index, 1);
+            this.engine.main_scene.point_lights.splice(light_index, 1);
         }
     }
 }
@@ -127,13 +127,13 @@ export class SpotLight extends Light {
     }
 
     protected on_parented(): void {
-        this.engine.spot_lights.push(this);
+        this.engine.main_scene.spot_lights.push(this);
     }
 
     protected on_removed(node:this, engine:Engine, parent:Node): void {
-        let light_index = this.engine.spot_lights.indexOf(this);
+        let light_index = this.engine.main_scene.spot_lights.indexOf(this);
         if (light_index > -1) {
-            this.engine.spot_lights.splice(light_index, 1);
+            this.engine.main_scene.spot_lights.splice(light_index, 1);
         }
     }
 }
@@ -164,13 +164,13 @@ export class DirectionalLight extends Light {
     }
 
     protected on_parented(): void {
-        this.engine.directional_lights.push(this);
+        this.engine.main_scene.directional_lights.push(this);
     }
 
     protected on_removed(node:this, engine:Engine, parent:Node): void {
-        let light_index = this.engine.directional_lights.indexOf(this);
+        let light_index = this.engine.main_scene.directional_lights.indexOf(this);
         if (light_index > -1) {
-            this.engine.directional_lights.splice(light_index, 1);
+            this.engine.main_scene.directional_lights.splice(light_index, 1);
         }
     }
 }

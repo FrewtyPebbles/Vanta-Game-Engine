@@ -15,10 +15,11 @@ export * from "./node/object3d.ts";
 export * from "./node/skybox.ts";
 export * from "./node/sprite2d.ts";
 export * from "./graphics/utility.ts";
-export * from "./input/input_manager.ts"
-export * from "./utility.ts"
-export * from "./engine.ts"
-export * from "./hook_manager.ts"
+export * from "./input/input_manager.ts";
+export * from "./utility.ts";
+export * from "./engine.ts";
+export * from "./scene.ts";
+export * from "./hook_manager.ts";
 import Engine from './engine.ts';
 
 export default Engine;

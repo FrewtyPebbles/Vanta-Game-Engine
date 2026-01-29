@@ -43,7 +43,7 @@ function on_update(node, engine, time, delta_time)
 
     local local_mesh_center = node.model.mesh.center
     local mesh_center = Vec4(local_mesh_center.x, local_mesh_center.y, local_mesh_center.z, 1.0):applyMat4(node:get_world_matrix())
-    engine.main_camera.rotation:fromMat3(Mat3():fromMat4(Mat4():lookAt(engine.main_camera.position, mesh_center, Vec3(0,1,0)):invert()))
+    engine.main_scene.main_camera_3d.rotation:fromMat3(Mat3():fromMat4(Mat4():lookAt(engine.main_scene.main_camera_3d.position, mesh_center, Vec3(0,1,0)):invert()))
     
     node.rotation = Quat():mul(wobble_quat):mul(rotation_quat)
 

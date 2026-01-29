@@ -109,7 +109,7 @@ export class Node {
             // node is string
 
             // remove parent
-            const node_instance = this.engine.get_node(node);
+            const node_instance = this.engine.main_scene.get_node(node);
 
             if (node_instance)
                 node_instance.parent = null;

@@ -18,13 +18,13 @@ export class Scene {
     on_scene_update_callback:(engine:Engine, scene:Scene, time:number, delta_time:number) => void = (engine, time, delta_time) => {};
 
     root_node:Node|null = null;
-    main_camera:Camera3D|null = null;
+    main_camera_3d:Camera3D|null = null;
 
     constructor(engine:Engine, name:string, root_node:Node|null = null, main_camera:Camera3D|null = null) {
         this.engine = engine;
         this.name = name;
         this.root_node = root_node;
-        this.main_camera = main_camera;
+        this.main_camera_3d = main_camera;
     }
     
     get_node(name:string):Node|null {

@@ -15,22 +15,12 @@ export default class Engine {
     hook_manager:HookManager;
 
     main_scene:Scene;
-
-    // This keeps track of all lights in the scene tree,
-    // makes it more efficient to render all the lights.
-    point_lights:PointLight[] = [];
-    directional_lights:DirectionalLight[] = [];
-    spot_lights:SpotLight[] = [];
     
     // EVENT CALLBACKS
     on_global_start_callback:(engine:Engine) => Promise<void>;
     on_global_update_callback:(engine:Engine, time:number, delta_time:number) => void;
 
     UTIL = Utility;
-
-    // Node Heirarchy
-    root_node:Node = new Node(this, "root_node");
-    main_camera:Camera3D = new Camera3D(this, "camera0");
 
     constructor(
         canvas:HTMLCanvasElement,
@@ -45,26 +35,6 @@ export default class Engine {
         this.on_global_start_callback = on_global_start_callback;
         this.on_global_update_callback = on_global_update_callback;
         this.main_scene = main_scene ? main_scene : new Scene(this, "main_scene");
-    }
-
-    get_node(name:string):Node|null {
-        // traverse scene tree until we find the node.
-        return this.get_node_search(name, this.root_node)
-    }
-
-    private get_node_search(name:string, node:Node):Node|null {
-        if (!node)
-            return null;
-        if (node.name == name)
-            return node;
-
-        for (const child_node of node.children) {
-            const search_result = this.get_node_search(name, child_node);
-            if (search_result)
-                return search_result;
-        }
-
-        return null;
     }
 
     async start() {
