@@ -78,9 +78,10 @@ export class Framebuffer implements Disposable {
         this.gl.deleteFramebuffer(this.webgl_frame_buffer);
     }
 
-    set_attachment_texture_array_index(attachment_name:string, index:number, rebind_framebuffer:boolean = true) {
-        if (rebind_framebuffer)
-            this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.webgl_frame_buffer);
+    set_attachment_texture_index(attachment_name:string, index:number) {        
+        const not_bound = this.gm.framebuffer !== this;
+        if (not_bound)
+            this.use();
         const attachment = this.attachment_info_map[attachment_name];
         switch (attachment.type) {
             case AttachmentType.TEXTURE_ARRAY_COLOR:
@@ -110,8 +111,61 @@ export class Framebuffer implements Disposable {
                 throw new Error(`setting the texture array index for the attachment named "${attachment.name}" of type AttachmentType.${attachment.type} is not supported.`)
         }
 
-        if (rebind_framebuffer)
-            this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+        if (not_bound)
+            this.gm.unuse_framebuffer();
+    }
+
+    clear() {
+        const not_bound = this.gm.framebuffer !== this;
+        if (not_bound)
+            this.use();
+        this.gl.clearDepth(1.0);
+        const cc = this.clear_color;
+        this.gl.clearColor(cc.x, cc.y, cc.z, cc.w);
+        this.gl.clear(
+            this.gl.COLOR_BUFFER_BIT |
+            (this.use_depth_buffer ? this.gl.DEPTH_BUFFER_BIT : 0)
+        );
+
+        if (not_bound)
+            this.gm.unuse_framebuffer();
+    }
+
+    set_attachment_cube_map_texture_face(attachment_name:string, face:number) {
+        const not_bound = this.gm.framebuffer !== this;
+        if (not_bound)
+            this.use();
+        const attachment = this.attachment_info_map[attachment_name];
+        switch (attachment.type) {
+            case AttachmentType.CUBEMAP_TEXTURE_COLOR:
+                if (attachment.color_attachment_number === undefined) {
+                    throw new Error(`The framebuffer "${this.name}" has an attachment named "${attachment.name}" with an AttachmentType of CUBEMAP_TEXTURE_COLOR without a 'color_attachment_number' set, this should not be possible, please file a github issue.`)
+                }
+                this.gl.framebufferTexture2D(
+                    this.gl.FRAMEBUFFER,
+                    this.gl.COLOR_ATTACHMENT0 + attachment.color_attachment_number,
+                    face,
+                    attachment.texture.webgl_texture,
+                    0
+                );
+                break;
+
+            case AttachmentType.CUBEMAP_TEXTURE_DEPTH:
+                this.gl.framebufferTexture2D(
+                    this.gl.FRAMEBUFFER,
+                    this.gl.DEPTH_ATTACHMENT,
+                    face,
+                    attachment.texture.webgl_texture,
+                    0
+                );
+                break;
+        
+            default:
+                throw new Error(`setting the texture array index for the attachment named "${attachment.name}" of type AttachmentType.${attachment.type} is not supported.`)
+        }
+
+        if (not_bound)
+            this.gm.unuse_framebuffer();
     }
 
     private create_attachment(attachment:AttachmentInfo, attachment_numbers:number[]) {
@@ -133,6 +187,10 @@ export class Framebuffer implements Disposable {
 
             case AttachmentType.TEXTURE_ARRAY_DEPTH:
                 this.create_attachment_depth_array_texture(attachment);
+                break;
+
+            case AttachmentType.CUBEMAP_TEXTURE_COLOR:
+                this.create_attachment_color_cubemap_texture(attachment, attachment_numbers);
                 break;
 
             case AttachmentType.CUBEMAP_TEXTURE_DEPTH:
@@ -238,6 +296,39 @@ export class Framebuffer implements Disposable {
             attachment.texture.webgl_texture,
             attachment.mipmap_level === undefined ? 0 : attachment.mipmap_level
         );
+    }
+
+    private create_attachment_color_cubemap_texture(attachment:AttachmentInfo, attachment_numbers:number[]) {
+        var tex_parameters:{[key:number]:number} = 
+            attachment.texture_parameters === undefined ? {} : attachment.texture_parameters;
+        tex_parameters[this.gl.TEXTURE_MIN_FILTER] = this.gl.NEAREST;
+        tex_parameters[this.gl.TEXTURE_MAG_FILTER] = this.gl.NEAREST;
+        tex_parameters[this.gl.TEXTURE_WRAP_S] = this.gl.CLAMP_TO_EDGE;
+        tex_parameters[this.gl.TEXTURE_WRAP_T] = this.gl.CLAMP_TO_EDGE;
+        
+        const attachment_num = this.gl.COLOR_ATTACHMENT0 + this.color_attachment_count;
+
+        const faces = [
+            this.gl.TEXTURE_CUBE_MAP_POSITIVE_X, this.gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
+            this.gl.TEXTURE_CUBE_MAP_POSITIVE_Y, this.gl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
+            this.gl.TEXTURE_CUBE_MAP_POSITIVE_Z, this.gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
+        ];
+        faces.forEach((face) => {
+            this.gl.framebufferTexture2D(
+                this.gl.FRAMEBUFFER,
+                attachment_num,
+                face,
+                attachment.texture.webgl_texture,
+                attachment.mipmap_level === undefined ? 0 : attachment.mipmap_level
+            );
+        });
+
+        if (attachment.buffer_source)
+            this.read_source_color_attachment = attachment_num;
+
+        attachment.color_attachment_number = attachment_num;
+        attachment_numbers.push(attachment_num);
+        this.color_attachment_count++;
     }
 
     private create_attachment_depth_cubemap_texture(attachment:AttachmentInfo) {

@@ -5,6 +5,8 @@ rotation_quat = Quat()
 
 speed = 10.0
 
+camera_speed = 150.0
+
 function on_ready(node, engine) 
 
 end
@@ -45,7 +47,18 @@ function on_update(node, engine, time, delta_time)
 
     local local_mesh_center = node.model.mesh.center
     local mesh_center = Vec4(local_mesh_center.x, local_mesh_center.y, local_mesh_center.z, 1.0):applyMat4(node:get_world_matrix())
-    engine.main_scene.main_camera_3d.rotation:fromMat3(Mat3():fromMat4(Mat4():lookAt(engine.main_scene.main_camera_3d.position, mesh_center, Vec3(0,1,0)):invert()))
+
+    local camera = engine.main_scene.main_camera_3d;
+
+    camera.rotation:fromMat3(Mat3():fromMat4(Mat4():lookAt(engine.main_scene.main_camera_3d.position, mesh_center, Vec3(0,1,0)):invert()))
+
+    local camera_forward = Vec4(0,0,-1,1):applyQuat(camera.rotation).xyz;
+
+    if camera.position.distance(node.position) > 300 then
+        camera.position.add(camera_forward.mul(math.min(camera_speed, camera.position.distance(node.position) - 200) * delta_time));
+    elseif camera.position.distance(node.position) < 290 then
+        camera.position.sub(camera_forward.mul(math.min(camera_speed, 190 - camera.position.distance(node.position)) * delta_time));
+    end
     
     node.rotation = Quat():mul(wobble_quat):mul(rotation_quat)
 

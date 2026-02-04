@@ -1,10 +1,10 @@
-import { Vec3, Vec2, Mat4, Quat, Vec4 } from '@vicimpa/glm';
+import { Vec3, Vec2, Mat4, Quat, Vec4, Mat2, Mat3 } from '@vicimpa/glm';
 import { Node3D, Node } from '../node.ts';
 import Engine from '../engine.ts';
-import { normalize_uniform_label } from './utility.ts';
+import { get_uniform_label_index, normalize_uniform_label } from './utility.ts';
 import { ShaderProgram, WebGLUniformType } from './shader_program.ts';
 import { AttachmentInfo, AttachmentType, Framebuffer } from './framebuffer.ts';
-import { CubeMapTexture, Texture } from './assets/texture.ts';
+import { CubeMapTexture, Texture, TextureType } from './assets/texture.ts';
 
 import DEFAULT_2D_VERTEX_SHADER from '../shaders/default_2d.vs.ts';
 import DEFAULT_2D_FRAGMENT_SHADER from '../shaders/default_2d.fs.ts';
@@ -17,6 +17,12 @@ import DEFAULT_SKYBOX_FRAGMENT_SHADER from '../shaders/default_skybox.fs.ts';
 
 import DEFAULT_DIRECTIONAL_SHADOW_VERTEX_SHADER from "../shaders/default_directional_shadow.vs.ts";
 import DEFAULT_DIRECTIONAL_SHADOW_FRAGMENT_SHADER from "../shaders/default_directional_shadow.fs.ts";
+
+import DEFAULT_POINT_SHADOW_VERTEX_SHADER from "../shaders/default_point_shadow.vs.ts";
+import DEFAULT_POINT_SHADOW_FRAGMENT_SHADER from "../shaders/default_point_shadow.fs.ts";
+import { PointLight } from '../node/lights/point_light.ts';
+import { DirectionalLight } from '../node/lights/directional_light.ts';
+import { SpotLight } from '../node/lights/spot_light.ts';
 
 export type WebGLType = number;
 
@@ -48,6 +54,18 @@ export class GraphicsManager {
     default_2d_shader_program:ShaderProgram;
     default_3d_shader_program:ShaderProgram;
     default_skybox_shader_program:ShaderProgram;
+
+    // LIGHTS
+    point_lights:PointLight[] = [];
+    directional_lights:DirectionalLight[] = [];
+    spot_lights:SpotLight[] = [];
+
+    // SHADOWS
+    directional_light_shadow_map_texture:Texture;
+    point_light_shadow_map_texture:Texture;
+    point_shadow_depth_buffer:Framebuffer;
+    directional_shadow_depth_buffer:Framebuffer;
+    shadow_resolution:number = 1024 * 6;
     
     constructor(engine:Engine, canvas:HTMLCanvasElement) {
         this.engine = engine;
@@ -60,6 +78,72 @@ export class GraphicsManager {
         this.default_2d_shader_program = this.create_default_2d_shader_program();
         this.default_3d_shader_program = this.create_default_3d_shader_program();
         this.default_skybox_shader_program = this.create_default_skybox_shader_program();
+
+        this.directional_light_shadow_map_texture = new Texture(
+            this,
+            "directional_light_shadow_map_texture",
+            Math.max(1, this.directional_lights.length),
+            this.shadow_resolution,
+            this.shadow_resolution,
+            TextureType.DEPTH_ARRAY,
+            {
+                [this.gl.TEXTURE_COMPARE_MODE]: this.gl.COMPARE_REF_TO_TEXTURE,
+                [this.gl.TEXTURE_COMPARE_FUNC]: this.gl.LEQUAL,
+                [this.gl.TEXTURE_MIN_FILTER]: this.gl.NEAREST,
+                [this.gl.TEXTURE_MAG_FILTER]: this.gl.NEAREST,
+                [this.gl.TEXTURE_WRAP_S]: this.gl.REPEAT,
+                [this.gl.TEXTURE_WRAP_T]: this.gl.REPEAT,
+                [this.gl.TEXTURE_BASE_LEVEL]: 0,
+                [this.gl.TEXTURE_MAX_LEVEL]: 0,
+            }
+        );
+
+        this.point_light_shadow_map_texture = new Texture(
+            this,
+            "point_light_shadow_map_texture",
+            Math.max(1, this.point_lights.length) * 6,
+            this.shadow_resolution,
+            this.shadow_resolution,
+            TextureType.DEPTH_ARRAY,
+            {
+                [this.gl.TEXTURE_COMPARE_MODE]: this.gl.COMPARE_REF_TO_TEXTURE,
+                [this.gl.TEXTURE_COMPARE_FUNC]: this.gl.LEQUAL,
+                [this.gl.TEXTURE_MIN_FILTER]: this.gl.NEAREST,
+                [this.gl.TEXTURE_MAG_FILTER]: this.gl.NEAREST,
+                [this.gl.TEXTURE_WRAP_S]: this.gl.REPEAT,
+                [this.gl.TEXTURE_WRAP_T]: this.gl.REPEAT,
+                [this.gl.TEXTURE_BASE_LEVEL]: 0,
+                [this.gl.TEXTURE_MAX_LEVEL]: 0,
+            }
+        );
+
+        this.point_shadow_depth_buffer = this.create_framebuffer(
+            `point_shadow_depth_buffer`,
+            this.shadow_resolution,
+            this.shadow_resolution,
+            [
+                {
+                    name:"depth",
+                    type:AttachmentType.TEXTURE_ARRAY_DEPTH,
+                    texture:this.point_light_shadow_map_texture,
+                    texture_array_index:this.point_lights.length * 6
+                }
+            ]
+        );
+
+        this.directional_shadow_depth_buffer = this.create_framebuffer(
+            `directional_shadow_depth_buffer`,
+            this.shadow_resolution,
+            this.shadow_resolution,
+            [
+                {
+                    name:"depth",
+                    type:AttachmentType.TEXTURE_ARRAY_DEPTH,
+                    texture:this.directional_light_shadow_map_texture,
+                    texture_array_index:this.directional_lights.length
+                }
+            ]
+        );
     }
 
     webgl_enabled():boolean {
@@ -110,6 +194,8 @@ export class GraphicsManager {
             this.clear_shader();
         this.shader_program = this.shader_programs[name];
         this.gl.useProgram(this.shader_program.webgl_shader_program);
+        // console.log(`USING SHADER ${this.shader_program.name}`);
+        
     }
 
     clear_shader() {
@@ -124,9 +210,10 @@ export class GraphicsManager {
     }
 
     use_framebuffer(name:string) {
-        if (this.framebuffer)
-            this.unuse_framebuffer();
-        this.framebuffer = this.framebuffers[name];
+        const framebuffer = this.framebuffers[name];
+        if (this.framebuffer === framebuffer)
+            return;
+        this.framebuffer = framebuffer;
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffer.webgl_frame_buffer);
         this.gl.viewport(0, 0, this.framebuffer.width, this.framebuffer.height);
         if (this.framebuffer.use_depth_buffer) {            
@@ -135,12 +222,6 @@ export class GraphicsManager {
             this.gl.depthMask(true);
             this.gl.depthFunc(this.gl.LESS);
         }
-        const cc = this.framebuffer.clear_color;
-        this.gl.clearColor(cc.x, cc.y, cc.z, cc.w);
-        this.gl.clear(
-            this.gl.COLOR_BUFFER_BIT |
-            (this.framebuffer.use_depth_buffer ? this.gl.DEPTH_BUFFER_BIT : 0)
-        );
     }
 
     unuse_framebuffer() {
@@ -155,14 +236,19 @@ export class GraphicsManager {
     }
 
     set_uniform(label:string, value:any, transpose:boolean = false, warn:boolean = false) {
+        
+        
         if (this.shader_program === null) {
             if (warn)
                 console.warn(`Attempted to set ${label} uniform value to ${value} before a shader program was selected.`)
             return;
         }
-
-        const normalized_label = normalize_uniform_label(label);
-
+        
+        const label_index = get_uniform_label_index(label);
+        
+        
+        const normalized_label = normalize_uniform_label(label).replace("[]", "");
+        
         let uniform = this.shader_program.uniforms[normalized_label];
         if (uniform === undefined) {
             if (warn)
@@ -177,43 +263,72 @@ export class GraphicsManager {
                     console.warn(`Uniform "${label}" not in use in shader program "${this.shader_program.name}".`)
             }
             this.shader_program.uniform_locs[label] = loc;
-        }        
+        }
+
+        // if (uniform.texture_unit !== undefined)
+        //     console.log("UNIFORM ", normalized_label, " ", uniform.texture_unit! + label_index, "SHADER : ", this.shader_program.name);
+        var is_sending_array = false;
+        if (value instanceof Array) {
+            if (uniform.is_array) {
+                is_sending_array = true
+            } else {
+                throw Error(`Uniform "${label}" in shader program "${this.shader_program.name}" does not accept array values even though one was supplied.`)
+            }
+        }
+
+        // console.log(label);
+        
+
+        if (is_sending_array) {
+            value = GraphicsManager.flatten_uniform_array_value(value);
+        }
+
         switch (uniform.type) {
             case WebGLUniformType.TEXTURE_2D:
             case WebGLUniformType.SHADOW_2D:
                 // console.log("TU TEXTURE_2D | SHADOW_2D", uniform.texture_unit);
 
-                this.gl.activeTexture(this.gl.TEXTURE0 + uniform.texture_unit!);
+                this.gl.activeTexture(this.gl.TEXTURE0 + uniform.texture_unit! + label_index);
                 this.gl.bindTexture(this.gl.TEXTURE_2D, (value as Texture).webgl_texture);
-                this.gl.uniform1i(this.shader_program.uniform_locs[label], uniform.texture_unit!);
+                this.gl.uniform1i(this.shader_program.uniform_locs[label], uniform.texture_unit! + label_index);
                 break;
             case WebGLUniformType.TEXTURE_2D_ARRAY:
             case WebGLUniformType.SHADOW_2D_ARRAY:
-                // console.log("TU TEXTURE_2D_ARRAY | SHADOW_2D_ARRAY", uniform.texture_unit);
+                // console.log("TU TEXTURE_2D_ARRAY | SHADOW_2D_ARRAY", (value as Texture).webgl_texture, uniform.texture_unit! + label_index, (value as Texture).name);
 
-                this.gl.activeTexture(this.gl.TEXTURE0 + uniform.texture_unit!);
+                this.gl.activeTexture(this.gl.TEXTURE0 + uniform.texture_unit! + label_index);
                 this.gl.bindTexture(this.gl.TEXTURE_2D_ARRAY, (value as Texture).webgl_texture);
-                this.gl.uniform1i(this.shader_program.uniform_locs[label], uniform.texture_unit!);
+                this.gl.uniform1i(this.shader_program.uniform_locs[label], uniform.texture_unit! + label_index);
                 break;
 
+            case WebGLUniformType.SHADOW_CUBE_MAP:
             case WebGLUniformType.TEXTURE_CUBE_MAP:
                 // console.log("TU TEXTURE_CUBE_MAP", uniform.texture_unit);
 
-                this.gl.activeTexture(this.gl.TEXTURE0 + uniform.texture_unit!);
+                this.gl.activeTexture(this.gl.TEXTURE0 + uniform.texture_unit! + label_index);
                 this.gl.bindTexture(this.gl.TEXTURE_CUBE_MAP, (value as CubeMapTexture).webgl_texture);
-                this.gl.uniform1i(this.shader_program.uniform_locs[label], uniform.texture_unit!);
+                this.gl.uniform1i(this.shader_program.uniform_locs[label], uniform.texture_unit! + label_index);
                 break;
 
             case WebGLUniformType.F:
-                this.gl.uniform1f(this.shader_program.uniform_locs[label], value);
+                if (is_sending_array)
+                    this.gl.uniform1fv(this.shader_program.uniform_locs[label], value);
+                else
+                    this.gl.uniform1f(this.shader_program.uniform_locs[label], value);
                 break;
 
             case WebGLUniformType.I:
-                this.gl.uniform1i(this.shader_program.uniform_locs[label], value);
+                if (is_sending_array)
+                    this.gl.uniform1iv(this.shader_program.uniform_locs[label], value);
+                else
+                    this.gl.uniform1i(this.shader_program.uniform_locs[label], value);
                 break;
 
             case WebGLUniformType.B:
-                this.gl.uniform1i(this.shader_program.uniform_locs[label], value);
+                if (is_sending_array)
+                    this.gl.uniform1iv(this.shader_program.uniform_locs[label], value);
+                else
+                    this.gl.uniform1i(this.shader_program.uniform_locs[label], value);
                 break;
 
             case WebGLUniformType.F2V:
@@ -244,6 +359,50 @@ export class GraphicsManager {
                 this.gl.uniformMatrix4fv(this.shader_program.uniform_locs[label], transpose, value);
                 break;
         }
+    }
+
+    static flatten_uniform_array_value(array_value:(Vec2|Vec3|Vec4|Mat2|Mat3|Mat4|number)[]):Float32Array {
+        var first_value = array_value[0];
+        if (typeof first_value === "number")
+            return new Float32Array(array_value as number[]);
+
+        const type_size = first_value.toArray().length;
+        let data = new Float32Array(array_value.length * type_size);
+        let offset = 0;
+
+        for (const v of array_value) {
+            if (typeof v !== "number") {
+                const v_array = v.toArray();
+                data.set(v_array, offset);
+                offset += v_array.length;
+            } else {
+                data[offset] = v;
+                offset += 1;
+            }
+        }
+        
+
+        return data;
+    }
+
+    resize_directional_shadow_map() {
+        this.directional_light_shadow_map_texture.resize_texture_array(this.directional_lights.length);
+
+        for (var i = 0; i < this.directional_lights.length; ++i) {
+            const directional_light = this.directional_lights[i];
+            directional_light.shadow_index = i;
+        }
+
+    }
+
+    resize_point_shadow_map() {
+        this.point_light_shadow_map_texture.resize_texture_array(this.point_lights.length * 6);
+
+        for (var i = 0; i < this.point_lights.length; ++i) {
+            const point_light = this.point_lights[i];
+            point_light.shadow_index_offset = i * 6;
+        }
+
     }
 
     private resize_canvas() {
@@ -279,12 +438,36 @@ export class GraphicsManager {
         // Render node heirarchy.
         const ortho_projection = (new Mat4()).orthoNO(0, this.canvas.width, 0, this.canvas.height, -1, 1);
         if (this.engine.main_scene.main_camera_3d) {
+
+            const view_matrix = this.engine.main_scene.main_camera_3d.get_view_matrix();
+            const projection_matrix = this.engine.main_scene.main_camera_3d.get_projection_matrix(this.canvas);
+
+            // RENDER SHADOWS
+            for (const light of this.point_lights) {
+                light.draw_shadow_map(
+                    view_matrix,
+                    projection_matrix,
+                    ortho_projection,
+                    time, delta_time
+                );
+            }
+
+            for (const light of this.directional_lights) {                
+                light.draw_shadow_map(
+                    view_matrix,
+                    projection_matrix,
+                    ortho_projection,
+                    time, delta_time
+                );
+            }
+
             this.engine.main_scene.render(
-                this.engine.main_scene.main_camera_3d.get_view_matrix(),
-                this.engine.main_scene.main_camera_3d.get_projection_matrix(this.canvas),
+                view_matrix,
+                projection_matrix,
                 ortho_projection,
                 time, delta_time
             );
+
         } else {
             console.warn(`The main scene "${this.engine.main_scene.name}" does not have a main camera 3D`);
         }
@@ -384,7 +567,8 @@ export class GraphicsManager {
         
         // shadows
         shader_prog_3d.add_uniform("u_directional_light_space_matrix[]", WebGLUniformType.F4M);
-        shader_prog_3d.add_uniform("directional_light_shadow_map", WebGLUniformType.SHADOW_2D_ARRAY);
+        shader_prog_3d.add_uniform("directional_light_shadow_maps", WebGLUniformType.SHADOW_2D_ARRAY);
+        shader_prog_3d.add_uniform("point_light_shadow_maps", WebGLUniformType.SHADOW_2D_ARRAY);
         shader_prog_3d.add_uniform("shadow_map_size", WebGLUniformType.F2V)
 
         shader_prog_3d.build();
@@ -416,6 +600,22 @@ export class GraphicsManager {
 
         sp.add_uniform("u_light_space_matrix", WebGLUniformType.F4M);
         sp.add_uniform("u_model", WebGLUniformType.F4M);
+
+        sp.build()
+
+        return sp;
+    }
+
+    create_default_point_shadow_shader_program():ShaderProgram {
+        const sp = this.create_shader_program("default_point_shadow_shader_program");
+
+        sp.add_shader(this.gl.VERTEX_SHADER, DEFAULT_POINT_SHADOW_VERTEX_SHADER);
+        sp.add_shader(this.gl.FRAGMENT_SHADER, DEFAULT_POINT_SHADOW_FRAGMENT_SHADER);
+
+        sp.add_uniform("u_light_space_matrix", WebGLUniformType.F4M);
+        sp.add_uniform("u_model", WebGLUniformType.F4M);
+        sp.add_uniform("origin", WebGLUniformType.F3V);
+        sp.add_uniform("range", WebGLUniformType.F);
 
         sp.build()
 

@@ -20,16 +20,6 @@ export class Object3D extends Node3D {
         
         this.on_update(this, this.engine, time, delta_time);
 
-        // DRAW SHADOWS
-        index = 0;
-        for (const light of this.engine.main_scene.directional_lights) {
-            light.draw_shadow_map(view_matrix, projection_matrix_3d, projection_matrix_2d, time, delta_time);
-            index++;
-        }
-
-        // CONTINUE DRAWING MATERIAL (without setting uniforms again)
-        this.model.draw_start();
-
         const skybox = this.get_parent_of_type(Skybox);
         if (skybox)
             this.engine.graphics_manager.set_uniform("environment.ambient_light", skybox.ambient_light);
@@ -48,7 +38,8 @@ export class Object3D extends Node3D {
         var local_mesh_center = this.model.mesh.center;
         var mesh_center = new Vec4(local_mesh_center.x, local_mesh_center.y, local_mesh_center.z, 1.0).applyMat4(this.get_world_matrix())
         
-        for (const light of this.engine.main_scene.point_lights) {
+        index = 0;
+        for (const light of this.engine.graphics_manager.point_lights) {
             if (mesh_center.xyz.distance(light.position) - mesh_size / 2.0 < light.range) {
                 light.set_uniforms("point_lights", index);
                 index++;
@@ -59,7 +50,7 @@ export class Object3D extends Node3D {
             this.engine.graphics_manager.set_uniform("point_lights_count", index);
         
         index = 0;
-        for (const light of this.engine.main_scene.spot_lights) {
+        for (const light of this.engine.graphics_manager.spot_lights) {
             light.set_uniforms("spot_lights", index);
             index++;
         }
@@ -68,7 +59,7 @@ export class Object3D extends Node3D {
             this.engine.graphics_manager.set_uniform("spot_lights_count", index);
         
         index = 0;
-        for (const light of this.engine.main_scene.directional_lights) {
+        for (const light of this.engine.graphics_manager.directional_lights) {
             light.set_uniforms("directional_lights", index);
             index++;
         }
@@ -77,8 +68,9 @@ export class Object3D extends Node3D {
             this.engine.graphics_manager.set_uniform("directional_lights_count", index);
 
         //PASS SHADOW MAPS
-        this.engine.graphics_manager.set_uniform("directional_light_shadow_map", this.engine.main_scene.directional_light_shadow_map_texture)
-        this.engine.graphics_manager.set_uniform("shadow_map_size", new Vec2(this.engine.main_scene.shadow_resolution))
+        this.engine.graphics_manager.set_uniform("directional_light_shadow_maps", this.engine.graphics_manager.directional_light_shadow_map_texture)
+        this.engine.graphics_manager.set_uniform("point_light_shadow_maps", this.engine.graphics_manager.point_light_shadow_map_texture)
+        this.engine.graphics_manager.set_uniform("shadow_map_size", new Vec2(this.engine.graphics_manager.shadow_resolution))
 
         // pass the MVP matrix
         this.engine.graphics_manager.set_uniform("u_model", this.get_world_matrix());

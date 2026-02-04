@@ -1,14 +1,15 @@
 import { GraphicsManager } from "./graphics_manager.ts";
-import { normalize_uniform_label } from "./utility.ts";
+import { get_uniform_label_index, normalize_uniform_label } from "./utility.ts";
 
 export type WebGLShaderType = number;
 
 export enum WebGLUniformType {
     TEXTURE_2D,
     TEXTURE_2D_ARRAY,
+    TEXTURE_CUBE_MAP,
     SHADOW_2D,
     SHADOW_2D_ARRAY,
-    TEXTURE_CUBE_MAP,
+    SHADOW_CUBE_MAP,
     STRUCT,
     F,
     I,
@@ -27,8 +28,25 @@ export enum WebGLUniformType {
 export interface WebGLUniform {
     label:string;
     type:WebGLUniformType;
+    is_array:boolean;
     texture_unit?:number;
 };
+
+interface UBOParameter {
+    label: string;
+    index: number;
+    offset: number;
+}
+
+interface UBOBase {
+    webgl_buffer: WebGLBuffer;
+}
+
+interface UBOParameters {
+    [parameter:string]: UBOParameter;
+}
+
+export type UBO = UBOBase & UBOParameters;
 
 export class ShaderProgram {
     gl:WebGLRenderingContext;
@@ -39,6 +57,8 @@ export class ShaderProgram {
     uniforms:{[key:string]:WebGLUniform} = {};
     uniform_locs:{[key:string]:WebGLUniformLocation|null} = {};
     texture_counter:number = 0;
+    ubo_counter:number = 0;
+    ubos:{[location:string]:UBO} = {}
 
     constructor(name:string, gm:GraphicsManager, gl:WebGLRenderingContext) {
         this.gm = gm;
@@ -57,11 +77,15 @@ export class ShaderProgram {
     }
 
     add_uniform(label:string, uniform_type:WebGLUniformType) {
-        label = normalize_uniform_label(label);
+        const uniform_size = Math.max(1, get_uniform_label_index(label));
+        let label_normalized = normalize_uniform_label(label);
+        label = label_normalized.replace("[]", "");
         this.uniforms[label] = {
             label,
             type:uniform_type,
+            is_array:label_normalized.startsWith("[]")
         }
+        
 
         if ([
             WebGLUniformType.TEXTURE_2D,
@@ -69,9 +93,12 @@ export class ShaderProgram {
             WebGLUniformType.TEXTURE_CUBE_MAP,
             WebGLUniformType.SHADOW_2D,
             WebGLUniformType.SHADOW_2D_ARRAY,
+            WebGLUniformType.SHADOW_CUBE_MAP,
         ].includes(uniform_type)) {
             this.uniforms[label].texture_unit = this.texture_counter;
-            this.texture_counter += 1;
+            // console.log(`TU ${label} (${uniform_type}) : ${this.uniforms[label].texture_unit}`);
+            
+            this.texture_counter += uniform_size;
         }
     }
 
@@ -91,8 +118,6 @@ export class ShaderProgram {
         // find uniform locs
 
         for (let [label, uniform] of Object.entries(this.uniforms)) {
-            if (label.startsWith("[]"))
-                continue;
             
             const loc = this.gl.getUniformLocation(this.webgl_shader_program!, label);
             if (!loc) {

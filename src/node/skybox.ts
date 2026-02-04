@@ -31,15 +31,15 @@ export class Skybox extends Node {
 
         const gm = this.engine.graphics_manager;
 
+        this.shader_program.use();
+        
         gm.gl.depthFunc(gm.gl.LEQUAL);
         
-        this.shader_program.use();
-
         this.on_update(this, this.engine, time, delta_time);
-
+        
         // bind the texture
         gm.set_uniform("skybox_texture", this.cubemap_texture);
-
+        
         // add the VP matrix
         gm.set_uniform("u_view", view_matrix);
 

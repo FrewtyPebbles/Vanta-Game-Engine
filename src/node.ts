@@ -154,9 +154,65 @@ export class Node {
 }
 
 export class Node2D extends Node {
-    rotation:number = 0.0; // radians
-    scale:Vec2 = new Vec2(1.0);
-    position:Vec2 = new Vec2(0.0);
+    private stored_position:Vec2;
+    private stored_rotation:number; // radians
+    private stored_scale:Vec2;
+
+    constructor(engine: Engine, name: string) {
+        super(engine, name);
+        // Bind the methods to the current instance
+        this.proxy_on_change_position = this.proxy_on_change_position.bind(this);
+        this.proxy_on_change_scale = this.proxy_on_change_scale.bind(this);
+
+        // Re-initialize proxies now that methods are bound
+        this.stored_position = new Proxy(new Vec2(0.0), {set:this.proxy_on_change_position});
+        this.stored_rotation = 0.0;
+        this.stored_scale = new Proxy(new Vec2(1.0), {set:this.proxy_on_change_scale});
+    }
+
+    get position():Vec2 {
+        return this.stored_position;
+    }
+
+    set position(value:Vec2) {
+        this.stored_position = new Proxy(value, {set:this.proxy_on_change_position});
+        this.on_change_position(value);
+    }
+
+    get rotation():number {
+        return this.stored_rotation;
+    }
+
+    set rotation(value:number) {
+        this.stored_rotation = value;
+        this.on_change_rotation(value);
+    }
+
+    get scale():Vec2 {
+        return this.stored_scale;
+    }
+
+    set scale(value:Vec2) {
+        this.stored_scale = new Proxy(value, {set:this.proxy_on_change_scale});
+        this.on_change_scale(value);
+    }
+    
+
+    private proxy_on_change_position(target:any, property:string, value:any):boolean {
+        target[property] = value;
+        this.on_change_position(target);
+        return true;
+    }
+
+    private proxy_on_change_scale(target:any, property:string, value:any):boolean {
+        target[property] = value;
+        this.on_change_scale(target);
+        return true;
+    }
+
+    protected on_change_position(new_value:Vec2) {}// ABSTRACT METHOD
+    protected on_change_rotation(new_value:number) {}// ABSTRACT METHOD
+    protected on_change_scale(new_value:Vec2) {}// ABSTRACT METHOD
 
     get_model_matrix():Mat4 {
         let model = (new Mat4()).identity();
@@ -182,9 +238,73 @@ export class Node2D extends Node {
 }
 
 export class Node3D extends Node {
-    rotation:Quat = new Quat(); // radians
-    scale:Vec3 = new Vec3(1.0);
-    position:Vec3 = new Vec3(0.0);
+
+    private stored_position:Vec3;
+    private stored_rotation:Quat; // radians
+    private stored_scale:Vec3;
+
+    constructor(engine: Engine, name: string) {
+        super(engine, name);
+        // Bind the methods to the current instance
+        this.proxy_on_change_position = this.proxy_on_change_position.bind(this);
+        this.proxy_on_change_rotation = this.proxy_on_change_rotation.bind(this);
+        this.proxy_on_change_scale = this.proxy_on_change_scale.bind(this);
+
+        // Re-initialize proxies now that methods are bound
+        this.stored_position = new Proxy(new Vec3(0.0), { set: this.proxy_on_change_position });
+        this.stored_rotation = new Proxy(new Quat(), { set: this.proxy_on_change_rotation });
+        this.stored_scale = new Proxy(new Vec3(1.0), { set: this.proxy_on_change_scale });
+    }
+
+    get position():Vec3 {
+        return this.stored_position;
+    }
+
+    set position(value:Vec3) {
+        this.stored_position = new Proxy(value, {set:this.proxy_on_change_position});
+        this.on_change_position(value);
+    }
+
+    get rotation():Quat {
+        return this.stored_rotation;
+    }
+
+    set rotation(value:Quat) {
+        this.stored_rotation = new Proxy(value, {set:this.proxy_on_change_rotation});
+        this.on_change_rotation(value);
+    }
+
+    get scale():Vec3 {
+        return this.stored_scale;
+    }
+
+    set scale(value:Vec3) {
+        this.stored_scale = new Proxy(value, {set:this.proxy_on_change_scale});
+        this.on_change_scale(value);
+    }
+    
+
+    private proxy_on_change_position(target:any, property:string, value:any):boolean {
+        target[property] = value;
+        this.on_change_position(target);
+        return true;
+    }
+
+    private proxy_on_change_rotation(target:any, property:string, value:any):boolean {
+        target[property] = value;
+        this.on_change_rotation(target);
+        return true;
+    }
+
+    private proxy_on_change_scale(target:any, property:string, value:any):boolean {
+        target[property] = value;
+        this.on_change_scale(target);
+        return true;
+    }
+
+    protected on_change_position(new_value:Vec3) {}// ABSTRACT METHOD
+    protected on_change_rotation(new_value:Quat) {}// ABSTRACT METHOD
+    protected on_change_scale(new_value:Vec3) {}// ABSTRACT METHOD
 
     get_model_matrix():Mat4 {
         const model = new Mat4().identity();

@@ -14,7 +14,7 @@ uniform mediump int point_lights_count;
 in vec3 v_normal;
 in vec2 v_uv;
 in vec3 v_frag_pos;
-in vec4 v_frag_pos_light_space[N_DIRECTIONAL_LIGHTS];
+in vec4 v_frag_pos_directional_light_space[N_DIRECTIONAL_LIGHTS];
 
 
 out vec4 frag_color;
@@ -91,7 +91,7 @@ uniform Environment environment;
 
 uniform vec3 camera_position;
 
-uniform sampler2DArrayShadow directional_light_shadow_map;
+uniform sampler2DArrayShadow directional_light_shadow_maps;
 
 uniform vec2 shadow_map_size;
 
@@ -130,7 +130,7 @@ void main() {
 }
 
 float calculate_shadow(int index, vec3 light_dir) {
-    vec4 frag_pos_light_space = v_frag_pos_light_space[index];
+    vec4 frag_pos_light_space = v_frag_pos_directional_light_space[index];
     vec3 proj_coords = frag_pos_light_space.xyz / frag_pos_light_space.w;
     proj_coords = proj_coords * 0.5 + 0.5;
 
@@ -151,7 +151,7 @@ float calculate_shadow(int index, vec3 light_dir) {
                 float(index), 
                 current_depth
             );
-            shadow += texture(directional_light_shadow_map, texture_lookup);
+            shadow += texture(directional_light_shadow_maps, texture_lookup);
         }
     }
 
@@ -191,8 +191,7 @@ vec3 calculate_directional_lighting(vec4 base_color) {
         float n_dot_l = max(dot(v_normal, light_dir), 0.0);
         vec3 product = Fr(light_dir, base_color) * L(light) * n_dot_l;
         float shadow = calculate_shadow(i, light_dir);
-        float visibility = shadow;
-        cumulative_radiance += product * light.color * visibility;
+        cumulative_radiance += product * light.color * shadow;
     }
 
     return cumulative_radiance;

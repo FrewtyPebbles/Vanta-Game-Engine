@@ -2,6 +2,11 @@ export function degrees_to_radians(degrees:number):number {
   return degrees * (Math.PI / 180);
 };
 
+export function get_uniform_label_index(raw_label:string):number {
+  const match = raw_label.match(/\[(\d+)\][^\[]*$/);
+  return match ? parseInt(match[1], 10) : 0;
+}
+
 export function normalize_uniform_label(raw_label:string) {
   var return_label = "";
   var start_ignore = false;
