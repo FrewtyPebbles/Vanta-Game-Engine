@@ -25,7 +25,7 @@ const p:ParameterMapping = {
 
 export function UniformBufferObjectMixin<TBase extends UBOBaseConstructor>(
     Base: TBase, location:string, parameter_mapping:ParameterMapping[],
-    auto_send_buffer_data:boolean = true // TODO: Make it so you can choose whether or not to automatically send the updated buffer or not.
+    auto_send_buffer_data:boolean = true
 ) {
     class UniformBufferObjectMixin extends (Base as UBOBaseConstructorUNION) {
         static shader_programs:ShaderProgram[] = []
@@ -95,7 +95,22 @@ export function UniformBufferObjectMixin<TBase extends UBOBaseConstructor>(
         }
 
         send_UBO() {
-            // TODO
+            var gm:GraphicsManager|null = null;
+            for (const shader_program of UniformBufferObjectMixin.shader_programs) {
+                gm = shader_program.gm;
+                gm.gl.bindBuffer(gm.gl.UNIFORM_BUFFER, shader_program.ubos[location].webgl_buffer);
+                for (const parameter of parameter_mapping) {
+                    const data = GraphicsManager.flatten_uniform_array_value((this as any)[parameter.class_property]);
+                    gm.gl.bufferSubData(
+                        gm.gl.UNIFORM_BUFFER,
+                        shader_program.ubos[location][parameter.class_property].offset,
+                        data,
+                        0
+                    );
+                }
+            }
+            if (gm)
+                gm.gl.bindBuffer(gm.gl.UNIFORM_BUFFER, null);
 
             // After sending set this flag
             UniformBufferObjectMixin.UBO_dirty = false;
