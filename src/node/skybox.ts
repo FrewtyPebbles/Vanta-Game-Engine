@@ -35,7 +35,7 @@ export class Skybox extends Node {
         
         gm.gl.depthFunc(gm.gl.LEQUAL);
         
-        this.on_update(this, this.engine, time, delta_time);
+        this.on_render(this, this.engine, time, delta_time);
         
         // bind the texture
         gm.set_uniform("skybox_texture", this.cubemap_texture);

@@ -62,16 +62,6 @@ export class Texture implements Disposable {
             height = arg2 as number;
             this.texture_type = arg3 ? arg3 as TextureType : TextureType.COLOR;
             texture_parameters = arg4 ? arg4 as {[parameter_name:number]:number} : {};
-            // let fallback_image_type:number = this.gm.gl.UNSIGNED_BYTE;
-            // switch (this.texture_type) {
-            //     case TextureType.COLOR:
-            //         fallback_image_type = this.gm.gl.UNSIGNED_BYTE;
-            //         break;
-            //     case TextureType.DEPTH:
-            //         fallback_image_type = this.gm.gl.UNSIGNED_INT;
-            //         break;
-            // }
-            // image_type = arg5 ? arg5 as number : fallback_image_type;
 
             this.webgl_texture = this.create_texture(null, this.texture_type, texture_parameters, 0, width, height);
         } else if (typeof arg1 === 'number') {
@@ -172,7 +162,6 @@ export class Texture implements Disposable {
         this.internal_format = this.gm.gl.DEPTH_COMPONENT24;
         this.format = this.gm.gl.DEPTH_COMPONENT;
         this.image_type = this.gm.gl.UNSIGNED_INT;
-        console.log("DAT", width, height, images);
         this.gm.gl.texImage3D(
             this.gm.gl.TEXTURE_2D_ARRAY,
             0,
@@ -239,7 +228,8 @@ export class Texture implements Disposable {
                     image
                 );
             }
-        } else {            
+            console.log("CAT", width, height, images);
+        } else {
             this.gm.gl.texImage3D(
                 this.gm.gl.TEXTURE_2D_ARRAY,
                 mip_level,
@@ -389,13 +379,42 @@ export class CubeMapTexture implements Disposable {
 
     constructor(gm:GraphicsManager,
         name:string,
+        size:number,
         texture_type:TextureType,
-        image_top:TexImageSource,
-        image_bottom:TexImageSource,
-        image_front:TexImageSource,
-        image_back:TexImageSource,
-        image_left:TexImageSource,
-        image_right:TexImageSource,
+        image_top:TexImageSource|Float32Array,
+        image_bottom:TexImageSource|Float32Array,
+        image_front:TexImageSource|Float32Array,
+        image_back:TexImageSource|Float32Array,
+        image_left:TexImageSource|Float32Array,
+        image_right:TexImageSource|Float32Array,
+        texture_parameters:{[parameter_name:number]:number},
+        mip_level:number,
+    );
+
+    constructor(gm:GraphicsManager,
+        name:string,
+        size:number,
+        texture_type:TextureType,
+        image_top:TexImageSource|Float32Array,
+        image_bottom:TexImageSource|Float32Array,
+        image_front:TexImageSource|Float32Array,
+        image_back:TexImageSource|Float32Array,
+        image_left:TexImageSource|Float32Array,
+        image_right:TexImageSource|Float32Array,
+        texture_parameters:{[parameter_name:number]:number},
+        mip_level:number,
+        image_type:number
+    );
+
+    constructor(gm:GraphicsManager,
+        name:string,
+        texture_type:TextureType,
+        image_top:TexImageSource|Float32Array,
+        image_bottom:TexImageSource|Float32Array,
+        image_front:TexImageSource|Float32Array,
+        image_back:TexImageSource|Float32Array,
+        image_left:TexImageSource|Float32Array,
+        image_right:TexImageSource|Float32Array,
         texture_parameters:{[parameter_name:number]:number},
         mip_level:number,
     );
@@ -403,18 +422,18 @@ export class CubeMapTexture implements Disposable {
     constructor(gm:GraphicsManager,
         name:string,
         texture_type:TextureType,
-        image_top:TexImageSource,
-        image_bottom:TexImageSource,
-        image_front:TexImageSource,
-        image_back:TexImageSource,
-        image_left:TexImageSource,
-        image_right:TexImageSource,
+        image_top:TexImageSource|Float32Array,
+        image_bottom:TexImageSource|Float32Array,
+        image_front:TexImageSource|Float32Array,
+        image_back:TexImageSource|Float32Array,
+        image_left:TexImageSource|Float32Array,
+        image_right:TexImageSource|Float32Array,
         texture_parameters:{[parameter_name:number]:number},
         mip_level:number,
         image_type:number
     );
 
-    constructor(gm:GraphicsManager, name:string, arg1:any, arg2:any, arg3:any = 0, arg4:any = UNSIGNED_INT, arg5:any = {}, arg6?:any|undefined, arg7?:any|undefined, arg8?:any|undefined, arg9?:any|undefined, arg10:any|undefined = UNSIGNED_BYTE) {
+    constructor(gm:GraphicsManager, name:string, arg1:any, arg2:any, arg3:any = 0, arg4:any = UNSIGNED_INT, arg5:any = {}, arg6?:any|undefined, arg7?:any|undefined, arg8?:any|undefined, arg9?:any|undefined, arg10?:any|undefined, arg11?:any|undefined) {
         this.gm = gm;
         this.name = name;
         
@@ -426,19 +445,43 @@ export class CubeMapTexture implements Disposable {
             const texture_parameters:{[parameter_name:number]:number} = arg5;
             this.webgl_texture = this.create_depth_texture(size, texture_type, texture_parameters, mip_level, image_type);
         } else {
+            var size:number = 0;
+            var texture_type:TextureType;
+            var image_top:TexImageSource;
+            var image_bottom:TexImageSource;
+            var image_front:TexImageSource;
+            var image_back:TexImageSource;
+            var image_left:TexImageSource;
+            var image_right:TexImageSource;
+            var texture_parameters:{[parameter_name:number]:number};
+            var mip_level:number;
+            var image_type:number;
+            if (typeof arg1 === "number") {
+                size = arg1;
+                texture_type = arg2;
+                image_top = arg3;
+                image_bottom = arg4;
+                image_front = arg5;
+                image_back = arg6;
+                image_left = arg7;
+                image_right = arg8;
+                texture_parameters = arg9;
+                mip_level = arg10;
+                image_type = arg11;
+            } else {
+                texture_type = arg1;
+                image_top = arg2;
+                image_bottom = arg3;
+                image_front = arg4;
+                image_back = arg5;
+                image_left = arg6;
+                image_right = arg7;
+                texture_parameters = arg8;
+                mip_level = arg9;
+                image_type = arg10 ? arg10 : UNSIGNED_BYTE;
+            }
 
-            const texture_type:TextureType = arg1;
-            const image_top:TexImageSource = arg2;
-            const image_bottom:TexImageSource = arg3;
-            const image_front:TexImageSource = arg4;
-            const image_back:TexImageSource = arg5;
-            const image_left:TexImageSource = arg6;
-            const image_right:TexImageSource = arg7;
-            const texture_parameters:{[parameter_name:number]:number} = arg8;
-            const mip_level:number = arg9;
-            const image_type:number = arg10;
-
-            this.webgl_texture = this.create_texture([
+            this.webgl_texture = this.create_texture(size, [
                 image_right,
                 image_left,
                 image_top,
@@ -490,7 +533,7 @@ export class CubeMapTexture implements Disposable {
         return texture;
     }
 
-    private create_texture(images:TexImageSource[], texture_parameters:{[parameter_name:number]:number}, mip_level:number, image_type:number = this.gm.gl.UNSIGNED_BYTE):WebGLTexture {
+    private create_texture(size:number, images:(TexImageSource|Float32Array)[], texture_parameters:{[parameter_name:number]:number}, mip_level:number, image_type:number = this.gm.gl.UNSIGNED_BYTE):WebGLTexture {
         let texture = this.gm.gl.createTexture();
         if (!texture) throw new Error("Failed to create texture");
         this.gm.gl.bindTexture(this.gm.gl.TEXTURE_CUBE_MAP, texture);
@@ -506,7 +549,10 @@ export class CubeMapTexture implements Disposable {
 
 
         targets.forEach((target, i) => {
-            this.gm.gl.texImage2D(target, mip_level, this.gm.gl.RGBA, this.gm.gl.RGBA, image_type, images[i]);
+            if (images[i] instanceof Float32Array)
+                this.gm.gl.texImage2D(target, mip_level, this.gm.gl.RGBA32F, size, size, 0, this.gm.gl.RGBA, image_type, images[i]);
+            else
+                this.gm.gl.texImage2D(target, mip_level, this.gm.gl.RGBA, this.gm.gl.RGBA, image_type, images[i]);
         });
         
         this.gm.gl.generateMipmap(this.gm.gl.TEXTURE_CUBE_MAP);

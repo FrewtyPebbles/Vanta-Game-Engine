@@ -1,6 +1,7 @@
 #version 300 es
 precision highp float;
 precision highp sampler2DArrayShadow;
+precision highp sampler2DArray;
 
 uniform mediump int directional_lights_count;
 uniform mediump int point_lights_count;
@@ -13,7 +14,7 @@ uniform mediump int spot_lights_count;
 
 in vec3 v_normal;
 in vec2 v_uv;
-in vec3 v_frag_pos;
+in vec4 v_frag_pos;
 
 out vec4 frag_color;
 
@@ -90,17 +91,14 @@ uniform Environment environment;
 uniform vec3 camera_position;
 
 uniform sampler2DArrayShadow directional_light_shadow_maps;
-uniform sampler2DArrayShadow point_light_shadow_maps;
+uniform sampler2DArray point_light_shadow_maps;
 
 uniform vec2 shadow_map_size;
 
+uniform samplerCube face_selector;
+
 uniform mat4 u_directional_light_space_matrix[N_DIRECTIONAL_LIGHTS];
 uniform mat4 u_point_light_space_matrix[N_POINT_LIGHTS * 6];
-
-// GLOBALS
-
-vec4 frag_pos_directional_light_space[N_DIRECTIONAL_LIGHTS];
-vec4 frag_pos_point_light_space[N_POINT_LIGHTS * 6];
 
 float L(PointLight light);
 float L(DirectionalLight light);
@@ -122,10 +120,7 @@ float calculate_point_shadow(int index, PointLight light);
 
 float calculate_directional_shadow(int index, vec3 light_dir);
 
-void calculate_light_space_frag_positions();
-
 void main() {
-    calculate_light_space_frag_positions();
     
     vec4 base_color = texture(material_texture_albedo, v_uv);
 
@@ -136,80 +131,76 @@ void main() {
     frag_color = base_color;
 }
 
-void calculate_light_space_frag_positions() {
-    // directional light space frag positions
-    for (int i = 0; i < directional_lights_count; ++i) {
-        frag_pos_directional_light_space[i] = u_directional_light_space_matrix[i] * vec4(v_frag_pos, 1.0);
+int get_point_shadow_face_index(int origin, vec3 dir) {
+    vec3 abs_dir = abs(dir);
+    
+    int index = 0;
+    
+    // Directly compare the absolute values
+    if (abs_dir.x >= abs_dir.y && abs_dir.x >= abs_dir.z) {
+        // X is dominant
+        index = (dir.x > 0.0) ? 0 : 1;
+    } else if (abs_dir.y >= abs_dir.z) {
+        // Y is dominant
+        index = (dir.y > 0.0) ? 2 : 3;
+    } else {
+        // Z is dominant
+        index = (dir.z > 0.0) ? 4 : 5;
     }
-
-    // point light space frag positions
-    for (int i = 0; i < point_lights_count; ++i) {
-        for (int face = 0; face < 6; ++face) {
-            frag_pos_point_light_space[i * 6 + face] =
-                u_point_light_space_matrix[i * 6 + face]
-                * vec4(v_frag_pos, 1.0);
-        }
-    }
-}
-
-int get_cubemap_face(vec3 dir) {
-    vec3 a = abs(dir);
-
-    if (a.x >= a.y && a.x >= a.z)
-    {
-        return dir.x > 0.0 ? 0 : 1; // +X or -X
-    }
-    else if (a.y >= a.x && a.y >= a.z)
-    {
-        return dir.y > 0.0 ? 2 : 3; // +Y or -Y
-    }
-    else
-    {
-        return dir.z > 0.0 ? 4 : 5; // +Z or -Z
-    }
+    
+    return origin + index;
 }
 
 float calculate_point_shadow(int index, PointLight light) {
-    vec3 frag_to_light = v_frag_pos - light.position;
+    vec3 light_to_frag = v_frag_pos.xyz - light.position;
+    float light_distance = length(light_to_frag);
+    vec3 dir = normalize(light_to_frag);
 
-    int face = get_cubemap_face(frag_to_light);
-    
-    vec4 frag_pos_light_space = frag_pos_point_light_space[index * 6 + face];
-    vec3 proj_coords = frag_pos_light_space.xyz / frag_pos_light_space.w;
-    proj_coords = proj_coords * 0.5 + 0.5;
+    float bias = max(0.015 * (1.0 - dot(v_normal, -dir)), 0.003);
 
-    float bias = max(0.05 * (1.0 - dot(v_normal, normalize(frag_to_light))), 0.005);  // tune this!
-    
-    float current_depth = proj_coords.z;
+    int face_index = get_point_shadow_face_index(index * 6, dir);
 
-    // apply blur to shadow edges
+    vec4 frag_light = u_point_light_space_matrix[face_index] * v_frag_pos;
+    vec3 proj = frag_light.xyz / frag_light.w;
+    proj = proj * 0.5 + 0.5;
+
+    float current_depth = light_distance / light.range;
+
     float shadow = 0.0;
-
+    float sample_scale = 10.0;
     vec2 texel_size = 1.0 / shadow_map_size;
-    int layer = index * 6 + face;
-    for(int x = -1; x <= 1; ++x)
-    {
-        for(int y = -1; y <= 1; ++y)
-        {
-            
-            vec4 texture_lookup = vec4(
-                proj_coords.xy + vec2(x, y) * texel_size,
-                float(layer),
-                current_depth - bias
-            );
-            shadow += texture(point_light_shadow_maps, texture_lookup);
+    for(int x = -1; x <= 1; ++x) {
+        for(int y = -1; y <= 1; ++y) {
+            float d = texture(point_light_shadow_maps, vec3(proj.xy + vec2(x, y) * sample_scale * texel_size, float(face_index))).r;
+            shadow += (current_depth - bias > d) ? 0.0 : 1.0;
         }
     }
+    shadow /= 9.0;
 
-    return shadow / 9.0;
+    return shadow;
+}
+
+vec3 calculate_point_lighting(vec4 base_color) {
+    vec3 cumulative_radiance = vec3(0.0,0.0,0.0);
+
+    for (int i = 0; i < point_lights_count; i++) {
+        PointLight light = point_lights[i];
+        vec3 light_dir = normalize(light.position - v_frag_pos.xyz);
+        float n_dot_l = max(dot(v_normal, light_dir), 0.0);
+        vec3 product = Fr(light_dir, base_color) * L(light) * n_dot_l;
+        float shadow = calculate_point_shadow(i, light);
+        cumulative_radiance += product * light.color * shadow;
+    }
+
+    return cumulative_radiance;
 }
 
 float calculate_directional_shadow(int index, vec3 light_dir) {
-    vec4 frag_pos_light_space = frag_pos_directional_light_space[index];
+    vec4 frag_pos_light_space = u_directional_light_space_matrix[index] * v_frag_pos;
     vec3 proj_coords = frag_pos_light_space.xyz / frag_pos_light_space.w;
     proj_coords = proj_coords * 0.5 + 0.5;
 
-    float bias = max(0.05 * (1.0 - dot(v_normal, light_dir)), 0.005);;  // tune this!
+    float bias = max(0.05 * (1.0 - dot(v_normal, light_dir)), 0.005);
 
     float current_depth = proj_coords.z - bias;
 
@@ -217,10 +208,8 @@ float calculate_directional_shadow(int index, vec3 light_dir) {
     float shadow = 0.0;
 
     vec2 texel_size = 1.0 / shadow_map_size;
-    for(int x = -1; x <= 1; ++x)
-    {
-        for(int y = -1; y <= 1; ++y)
-        {
+    for(int x = -1; x <= 1; ++x) {
+        for(int y = -1; y <= 1; ++y) {
             vec4 texture_lookup = vec4(
                 proj_coords.xy + vec2(x, y) * texel_size, 
                 float(index), 
@@ -243,21 +232,6 @@ vec3 calculate_lighting(vec4 base_color) {
     return cumulative_radiance;
 }
 
-vec3 calculate_point_lighting(vec4 base_color) {
-    vec3 cumulative_radiance = vec3(0.0,0.0,0.0);
-
-    for (int i = 0; i < point_lights_count; i++) {
-        PointLight light = point_lights[i];
-        vec3 light_dir = normalize(light.position - v_frag_pos);
-        float n_dot_l = max(dot(v_normal, light_dir), 0.0);
-        vec3 product = Fr(light_dir, base_color) * L(light) * n_dot_l;
-        float shadow = calculate_point_shadow(i, light);
-        cumulative_radiance += product * light.color * shadow;
-    }
-
-    return cumulative_radiance;
-}
-
 vec3 calculate_directional_lighting(vec4 base_color) {
     vec3 cumulative_radiance = vec3(0.0,0.0,0.0);
 
@@ -276,7 +250,7 @@ vec3 calculate_directional_lighting(vec4 base_color) {
 vec3 Fr(vec3 light_dir, vec4 albedo_color) {
 
     // COOK TORRANCE
-    vec3 view_vector = normalize(camera_position - v_frag_pos);
+    vec3 view_vector = normalize(camera_position - v_frag_pos.xyz);
     vec3 halfway_vector = (light_dir + view_vector) / length(light_dir + view_vector);
     
     /// DGF
@@ -301,7 +275,7 @@ vec3 Fr(vec3 light_dir, vec4 albedo_color) {
 }
 
 float L(PointLight light) {
-    float light_distance = distance(v_frag_pos, light.position);
+    float light_distance = distance(v_frag_pos.xyz, light.position);
     // Standard ranged attenuation
     float attenuation = clamp(1.0 - light_distance / light.range, 0.0, 1.0);
     return light.energy * attenuation * attenuation;

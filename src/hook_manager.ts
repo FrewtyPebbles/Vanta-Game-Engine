@@ -18,6 +18,7 @@ export class HookManager {
     on_ready_callbacks:{[key:string]:(node:Node, engine:Engine) => void} = {};
     on_removed_callbacks:{[key:string]:(node:Node, engine:Engine, parent:Node) => void} = {};
     on_update_callbacks:{[key:string]:(node:Node, engine:Engine, time:number, delta_time:number) => void} = {};
+    on_render_callbacks:{[key:string]:(node:Node, engine:Engine, time:number, delta_time:number) => void} = {};
     
     constructor(engine:Engine) {
         this.engine = engine;
@@ -41,6 +42,10 @@ export class HookManager {
     
     call_on_update_callback(url:string, node:Node, engine:Engine, time:number, delta_time:number) {
         this.on_update_callbacks[url](node, engine, time, delta_time);
+    }
+
+    call_on_render_callback(url:string, node:Node, engine:Engine, time:number, delta_time:number) {
+        this.on_render_callbacks[url](node, engine, time, delta_time);
     }
     
     private async do_lua_file_url(url: string) {
@@ -93,6 +98,19 @@ export class HookManager {
         const callback = this.lua.global.get("on_update");
         
         this.on_update_callbacks[url] = callback;
+    }
+
+    async add_on_render_callback(url:string) {
+        await this.lua_engine_promise;
+        
+        if (!this.lua)
+            return;
+        
+        await this.do_lua_file_url(url);
+        
+        const callback = this.lua.global.get("on_render");
+        
+        this.on_render_callbacks[url] = callback;
     }
 
     async set_globals() {

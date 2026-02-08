@@ -20,13 +20,11 @@ import DEFAULT_DIRECTIONAL_SHADOW_FRAGMENT_SHADER from "../shaders/default_direc
 
 import DEFAULT_POINT_SHADOW_VERTEX_SHADER from "../shaders/default_point_shadow.vs.ts";
 import DEFAULT_POINT_SHADOW_FRAGMENT_SHADER from "../shaders/default_point_shadow.fs.ts";
-import { PointLight } from '../node/lights/point_light.ts';
+import { get_face_cube_map_texture, PointLight } from '../node/lights/point_light.ts';
 import { DirectionalLight } from '../node/lights/directional_light.ts';
 import { SpotLight } from '../node/lights/spot_light.ts';
 
 export type WebGLType = number;
-
-const MAX_DELTA_TIME = 0.1; // 100 ms
 
 export interface WebGLVertexAttribute {
     label:string;
@@ -48,7 +46,7 @@ export class GraphicsManager {
     vertex_attributes:{[key:string]:WebGLVertexAttribute} = {};
     vertex_count:number = 0;
     
-    prev_time:number = 0;
+    private last_frame_time: number | null = null;
     
     // DEFAULT SHADERS
     default_2d_shader_program:ShaderProgram;
@@ -68,12 +66,12 @@ export class GraphicsManager {
     shadow_resolution:number = 1024 * 6;
     
     constructor(engine:Engine, canvas:HTMLCanvasElement) {
-        this.engine = engine;
         this.canvas = canvas;
         this.gl = canvas.getContext("webgl2", {
             colorSpace: 'srgb',
             antialias: true
         })! as WebGL2RenderingContext;
+        this.engine = engine;
 
         this.default_2d_shader_program = this.create_default_2d_shader_program();
         this.default_3d_shader_program = this.create_default_3d_shader_program();
@@ -102,9 +100,9 @@ export class GraphicsManager {
             this,
             "point_light_shadow_map_texture",
             Math.max(1, this.point_lights.length) * 6,
-            this.shadow_resolution,
-            this.shadow_resolution,
-            TextureType.DEPTH_ARRAY,
+            this.shadow_resolution/6,
+            this.shadow_resolution/6,
+            TextureType.COLOR_ARRAY,
             {
                 [this.gl.TEXTURE_COMPARE_MODE]: this.gl.COMPARE_REF_TO_TEXTURE,
                 [this.gl.TEXTURE_COMPARE_FUNC]: this.gl.LEQUAL,
@@ -119,12 +117,12 @@ export class GraphicsManager {
 
         this.point_shadow_depth_buffer = this.create_framebuffer(
             `point_shadow_depth_buffer`,
-            this.shadow_resolution,
-            this.shadow_resolution,
+            this.shadow_resolution/6,
+            this.shadow_resolution/6,
             [
                 {
                     name:"depth",
-                    type:AttachmentType.TEXTURE_ARRAY_DEPTH,
+                    type:AttachmentType.TEXTURE_ARRAY_COLOR,
                     texture:this.point_light_shadow_map_texture,
                     texture_array_index:this.point_lights.length * 6
                 }
@@ -286,16 +284,12 @@ export class GraphicsManager {
         switch (uniform.type) {
             case WebGLUniformType.TEXTURE_2D:
             case WebGLUniformType.SHADOW_2D:
-                // console.log("TU TEXTURE_2D | SHADOW_2D", uniform.texture_unit);
-
                 this.gl.activeTexture(this.gl.TEXTURE0 + uniform.texture_unit! + label_index);
                 this.gl.bindTexture(this.gl.TEXTURE_2D, (value as Texture).webgl_texture);
                 this.gl.uniform1i(this.shader_program.uniform_locs[label], uniform.texture_unit! + label_index);
                 break;
             case WebGLUniformType.TEXTURE_2D_ARRAY:
             case WebGLUniformType.SHADOW_2D_ARRAY:
-                // console.log("TU TEXTURE_2D_ARRAY | SHADOW_2D_ARRAY", (value as Texture).webgl_texture, uniform.texture_unit! + label_index, (value as Texture).name);
-
                 this.gl.activeTexture(this.gl.TEXTURE0 + uniform.texture_unit! + label_index);
                 this.gl.bindTexture(this.gl.TEXTURE_2D_ARRAY, (value as Texture).webgl_texture);
                 this.gl.uniform1i(this.shader_program.uniform_locs[label], uniform.texture_unit! + label_index);
@@ -303,8 +297,6 @@ export class GraphicsManager {
 
             case WebGLUniformType.SHADOW_CUBE_MAP:
             case WebGLUniformType.TEXTURE_CUBE_MAP:
-                // console.log("TU TEXTURE_CUBE_MAP", uniform.texture_unit);
-
                 this.gl.activeTexture(this.gl.TEXTURE0 + uniform.texture_unit! + label_index);
                 this.gl.bindTexture(this.gl.TEXTURE_CUBE_MAP, (value as CubeMapTexture).webgl_texture);
                 this.gl.uniform1i(this.shader_program.uniform_locs[label], uniform.texture_unit! + label_index);
@@ -424,10 +416,23 @@ export class GraphicsManager {
         this.render_frame(update_callback);
     }
 
-    private render_frame(update_callback:(gm:GraphicsManager, time:number, delta_time:number)=>void, time:number = 0):number {        
-        const delta_time = Math.min((time - this.prev_time) * 0.001, MAX_DELTA_TIME); // ms to seconds
-        this.prev_time = time;
-        update_callback(this, time, delta_time);
+    private render_frame(update_callback:(gm:GraphicsManager, time:number, delta_time:number)=>void, current_time: number = 0):number {        
+        
+        // first frame, initialize and skip large delta
+        if (this.last_frame_time === null) {
+            this.last_frame_time = current_time;
+            update_callback(this, current_time, 0);
+            return requestAnimationFrame((newTime) => this.render_frame(update_callback, newTime));
+        }
+
+        // calculate delta in seconds
+        let delta_time = (current_time - this.last_frame_time) / 1000;  // already ms → seconds
+
+        delta_time = delta_time;
+
+        this.last_frame_time = current_time;
+
+        update_callback(this, current_time, delta_time);
         
         this.resize_canvas();
         
@@ -436,7 +441,10 @@ export class GraphicsManager {
         this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 
         // Render node heirarchy.
-        const ortho_projection = (new Mat4()).orthoNO(0, this.canvas.width, 0, this.canvas.height, -1, 1);
+        const ortho_projection = new Mat4().orthoZO(0, this.canvas.width, 0, this.canvas.height, -1, 1);
+
+        this.engine.main_scene.update(current_time, delta_time);
+
         if (this.engine.main_scene.main_camera_3d) {
 
             const view_matrix = this.engine.main_scene.main_camera_3d.get_view_matrix();
@@ -448,7 +456,7 @@ export class GraphicsManager {
                     view_matrix,
                     projection_matrix,
                     ortho_projection,
-                    time, delta_time
+                    current_time, delta_time
                 );
             }
 
@@ -457,7 +465,7 @@ export class GraphicsManager {
                     view_matrix,
                     projection_matrix,
                     ortho_projection,
-                    time, delta_time
+                    current_time, delta_time
                 );
             }
 
@@ -465,14 +473,14 @@ export class GraphicsManager {
                 view_matrix,
                 projection_matrix,
                 ortho_projection,
-                time, delta_time
+                current_time, delta_time
             );
 
         } else {
             console.warn(`The main scene "${this.engine.main_scene.name}" does not have a main camera 3D`);
         }
         
-        return requestAnimationFrame((new_time)=>{return this.render_frame(update_callback, new_time);});
+        return requestAnimationFrame((new_time) => this.render_frame(update_callback, new_time));
     }
 
     create_default_2d_shader_program():ShaderProgram {
@@ -567,11 +575,16 @@ export class GraphicsManager {
         
         // shadows
         shader_prog_3d.add_uniform("u_directional_light_space_matrix[]", WebGLUniformType.F4M);
+        shader_prog_3d.add_uniform("u_point_light_space_matrix[]", WebGLUniformType.F4M);
         shader_prog_3d.add_uniform("directional_light_shadow_maps", WebGLUniformType.SHADOW_2D_ARRAY);
-        shader_prog_3d.add_uniform("point_light_shadow_maps", WebGLUniformType.SHADOW_2D_ARRAY);
-        shader_prog_3d.add_uniform("shadow_map_size", WebGLUniformType.F2V)
+        shader_prog_3d.add_uniform("point_light_shadow_maps", WebGLUniformType.TEXTURE_2D_ARRAY);
+        shader_prog_3d.add_uniform("shadow_map_size", WebGLUniformType.F2V);
 
         shader_prog_3d.build();
+
+        shader_prog_3d.use();
+        this.set_uniform("face_selector", get_face_cube_map_texture(this));
+        this.clear_shader();
 
         return shader_prog_3d;
     }

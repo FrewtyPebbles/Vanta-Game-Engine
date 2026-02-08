@@ -35,10 +35,8 @@ export function UniformBufferObjectMixin<TBase extends UBOBaseConstructor>(
             for (const parameter of parameter_mapping) {
                 const property = parameter.class_property;
                 
-                // 1. Capture the initial value set by the Base class
                 let value = (this as any)[property];
 
-                // 2. Redefine the property with a setter
                 Object.defineProperty(this, property, {
                     get: () => (this as any)["stored_" + property],
                     set: (new_value) => {

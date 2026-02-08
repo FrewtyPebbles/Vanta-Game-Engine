@@ -18,7 +18,7 @@ export class Object3D extends Node3D {
         
         this.model.draw_start();
         
-        this.on_update(this, this.engine, time, delta_time);
+        this.on_render(this, this.engine, time, delta_time);
 
         const skybox = this.get_parent_of_type(Skybox);
         if (skybox)

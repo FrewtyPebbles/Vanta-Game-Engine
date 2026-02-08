@@ -3,8 +3,6 @@ import Engine, { load_obj, GraphicsManager, WebGLUniformType, Object3D, Skybox, 
 
 async function startup(engine:Engine) {
 
-    const im:InputManager = engine.input_manager;
-
     const gm:GraphicsManager = engine.graphics_manager;
 
     if (!engine.main_scene)
@@ -21,28 +19,9 @@ async function startup(engine:Engine) {
         "/assets/models/MedievalAnchor/textures/AnchorHook_albedo.png"
     ]);
 
-    const cube_model_promise = load_obj(gm, "/assets/models/cube/source/Cube.obj", [
-        "/assets/models/cube/textures/goblin.jpeg"
-    ]);
-
     const sphere_model_promise = load_obj(gm, "/assets/models/sphere/source/sphere.obj", [
         "/assets/models/sphere/textures/Poliigon_FoodPastryDonut_10737_BaseColor.jpg"
     ]);
-
-    // DEPTHMAP SHADER
-    const shader_prog_depthmap = gm.create_shader_program("depthmap");
-
-    shader_prog_depthmap.add_shader(gm.gl.VERTEX_SHADER, await engine.UTIL.load_text_file("/assets/depthmap.vs"));
-    shader_prog_depthmap.add_shader(gm.gl.FRAGMENT_SHADER, await engine.UTIL.load_text_file("/assets/depthmap.fs"));
-
-    // MP
-    shader_prog_depthmap.add_uniform("u_model", WebGLUniformType.F4M);
-    shader_prog_depthmap.add_uniform("u_projection", WebGLUniformType.F4M);
-
-    // sprite texture
-    shader_prog_depthmap.add_uniform("sprite_texture", WebGLUniformType.SHADOW_2D_ARRAY);
-
-    shader_prog_depthmap.build();
 
     // SUBMERGED SHADER
     const shader_prog_submerged = gm.create_shader_program("submerged");
@@ -119,8 +98,10 @@ async function startup(engine:Engine) {
 
     // shadows
     shader_prog_submerged.add_uniform("u_directional_light_space_matrix[]", WebGLUniformType.F4M);
+    shader_prog_submerged.add_uniform("u_point_light_space_matrix[]", WebGLUniformType.F4M);
     shader_prog_submerged.add_uniform("directional_light_shadow_maps", WebGLUniformType.SHADOW_2D_ARRAY);
-    shader_prog_submerged.add_uniform("shadow_map_size", WebGLUniformType.F2V)
+    shader_prog_submerged.add_uniform("point_light_shadow_maps", WebGLUniformType.TEXTURE_2D_ARRAY);
+    shader_prog_submerged.add_uniform("shadow_map_size", WebGLUniformType.F2V);
 
     shader_prog_submerged.build()
 
@@ -162,18 +143,6 @@ async function startup(engine:Engine) {
     anchor.model.material.blend_function = {sfactor:gm.gl.SRC_ALPHA, dfactor:gm.gl.ONE_MINUS_SRC_ALPHA};
     // anchor.model.material.set_shader_program(shader_prog_submerged);
 
-    const cube_model = await cube_model_promise;
-
-    if (!cube_model)
-        throw new Error("Failed to load cube model.")
-
-    const cube = new Object3D(engine, "cube", cube_model);
-
-    cube.model.material.roughness = 1.0
-    cube.model.material.metalic = 0.0
-    cube.model.material.blend_function = {sfactor:gm.gl.SRC_ALPHA, dfactor:gm.gl.ONE_MINUS_SRC_ALPHA};
-    // cube.model.material.set_shader_program(shader_prog_submerged);
-
     const sphere_model = await sphere_model_promise;
 
     if (!sphere_model)
@@ -184,7 +153,7 @@ async function startup(engine:Engine) {
     sphere.model.material.roughness = 0.5
     sphere.model.material.metalic = 1.0
     sphere.model.material.blend_function = {sfactor:gm.gl.SRC_ALPHA, dfactor:gm.gl.ONE_MINUS_SRC_ALPHA};
-    sphere.model.material.set_shader_program(shader_prog_submerged);
+    // sphere.model.material.set_shader_program(shader_prog_submerged);
 
     await anchor.set_lua_file("/assets/src/anchor.lua");
 
@@ -192,38 +161,29 @@ async function startup(engine:Engine) {
 
     await sphere.set_lua_file("/assets/src/sphere.lua");
 
-    const point_light = new PointLight(engine, "point_light", new Vec3(1.0,1.0,1.0), 1.0, 1.0, 1.0, 10.0, 1000.0);
+    const point_light = new PointLight(engine, "point_light", new Vec3(1.0,1.0,1.0), 1.0, 1.0, 1.0, 1.0, 1000.0);
     
-    const ocean_light = new DirectionalLight(engine, "ocean_light", new Vec3(0.0,0.0,1.0), 1.0, 1.0, 1.0, 7.0)
-    const sun_light = new DirectionalLight(engine, "sun_light", new Vec3(1.0,1.0,0.0), 1.0, 1.0, 1.0, 1.0)
+    const ocean_light = new DirectionalLight(engine, "ocean_light", new Vec3(0.0,0.0,1.0), 1.0, 1.0, 1.0, 2.0)
+    const sun_light = new DirectionalLight(engine, "sun_light", new Vec3(1.0,1.0,0.0), 1.0, 1.0, 1.0, 2.0)
     
     const overlay = new Node(engine, "overlay")
 
     
+    engine.main_scene.root_node.push_child(sphere);
     engine.main_scene.root_node.push_child(pirate_ship);
     engine.main_scene.root_node.push_child(anchor);
-    engine.main_scene.root_node.push_child(sphere);
-    engine.main_scene.root_node.push_child(point_light);
-    // engine.main_scene.root_node.push_child(cube);
+    pirate_ship.push_child(point_light);
     // engine.main_scene.root_node.push_child(sun_light);
     // engine.main_scene.root_node.push_child(ocean_light);
     
-    const depth_texture = new Sprite2D(engine, "depth_texture", engine.graphics_manager.point_light_shadow_map_texture, shader_prog_depthmap);
     engine.main_scene.root_node.push_child(overlay);
-
-    overlay.push_child(depth_texture);
-
-    cube.position = new Vec3(0,-100,0)
-    cube.scale = new Vec3(100, 30.0, 100);
-    depth_texture.position = new Vec2(300, 300)
-    depth_texture.scale = new Vec2(300, 300)
 
     ocean_light.rotation.rotateZ(270 * (Math.PI / 180))
     sun_light.rotation.rotateZ(100 * (Math.PI / 180))
 
-    point_light.position = new Vec3(0, 200, 0)
-    sphere.position = new Vec3(200, 0, 0)
-    sphere.scale = new Vec3(100)
+    point_light.position = new Vec3(100, 150, 0);
+    sphere.position = new Vec3(200, 0, 0);
+    sphere.scale = new Vec3(100);
     
     anchor.position = new Vec3(0,130,0);
     anchor.rotation.rotateX(-Math.PI/8);
@@ -232,8 +192,7 @@ async function startup(engine:Engine) {
     
     engine.main_scene.main_camera_3d = new Camera3D(engine, "main_camera");
 
-    engine.main_scene.main_camera_3d.position = (new Vec3(0, 3, 5)).mul(70);
-    
+    engine.main_scene.main_camera_3d.position = (new Vec3(0, 4, 5)).mul(70);
 }
 
 const canvas: HTMLCanvasElement = document.getElementById("render-canvas") as HTMLCanvasElement;

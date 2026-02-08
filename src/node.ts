@@ -1,4 +1,4 @@
-import { Vec3, Vec2, Mat4, Quat } from '@vicimpa/glm';
+import { Vec3, Vec2, Mat4, Quat, Vec4 } from '@vicimpa/glm';
 import { GraphicsManager } from './graphics/graphics_manager.ts';
 import Engine from './engine.ts';
 
@@ -14,6 +14,7 @@ export class Node {
     on_ready_callback:(node:Node, engine:Engine) => void = (node, engine) =>{};
     on_removed_callback:(node:Node, engine:Engine, parent:Node) => void = (node, engine, parent) =>{};
     on_update_callback:(node:Node, engine:Engine, time:number, delta_time:number) => void = (node, engine:Engine, time:number, delta_time:number) =>{};
+    on_render_callback:(node:Node, engine:Engine, time:number, delta_time:number) => void = (node, engine:Engine, time:number, delta_time:number) =>{};
     private lua_url:string|null = null;
     
     constructor(engine:Engine, name:string) {
@@ -26,6 +27,7 @@ export class Node {
         await this.engine.hook_manager.add_on_ready_callback(url);
         await this.engine.hook_manager.add_on_removed_callback(url);
         await this.engine.hook_manager.add_on_update_callback(url);
+        await this.engine.hook_manager.add_on_render_callback(url);
     }
 
     protected on_ready(node:this, engine:Engine) {
@@ -46,6 +48,14 @@ export class Node {
         this.on_update_callback(node, engine, time, delta_time);
         if (this.lua_url !== null)
             this.engine.hook_manager.call_on_update_callback(this.lua_url, node, engine, time, delta_time);
+    }
+
+    protected on_render(node:this, engine:Engine, time:number, delta_time:number) {
+        if (this.engine.main_scene.rendering_depth_map)
+            return;
+        this.on_render_callback(node, engine, time, delta_time);
+        if (this.lua_url !== null)
+            this.engine.hook_manager.call_on_render_callback(this.lua_url, node, engine, time, delta_time);
     }
 
     protected on_parented() {}
@@ -85,6 +95,19 @@ export class Node {
             return this.parent.get_parent_of_type<T>(node_type);
         return null;
     }
+
+    get_children_of_type<T>(node_type:Constructor<T>):T[] {
+        var target_list:T[] = [];
+        var parents:Node[] = [this];
+        for (const child of parents[parents.length-1].children) {
+            const child_target_list = child.get_children_of_type(node_type);
+            target_list.concat(child_target_list);
+            if (child instanceof node_type) {
+                target_list.push(child);
+            }
+        }
+        return target_list;
+    }
     
     push_child(node:Node) {
         if (node.parent) {
@@ -94,7 +117,7 @@ export class Node {
 
         this.children.push(node);
         node.parent = this;
-        node.on_ready(this, this.engine);
+        node.on_ready(node, this.engine);
         node.on_parented();
     }
 
@@ -117,7 +140,7 @@ export class Node {
                 node_instance.parent = null;
 
             // remove from children of parent.
-            index = 0;
+            index = -1;
 
             for (const child of this.children) {
                 if (child.name === node) {
@@ -136,6 +159,13 @@ export class Node {
             node.on_removed(node, this.engine, this);
         }
     }
+
+    update(time:number, delta_time:number) {
+        this.on_update(this, this.engine, time, delta_time);
+        for (const child of this.children) {
+            child.update(time, delta_time);
+        }
+    }
     
     render(view_matrix:Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4, time:number, delta_time:number) {
         this.render_class(view_matrix, projection_matrix_3d, projection_matrix_2d, time, delta_time);
@@ -149,7 +179,7 @@ export class Node {
     }
     // This is the function where the webgl2 state is set to render.
     protected render_class(view_matrix: Mat4, projection_matrix_3d: Mat4, projection_matrix_2d: Mat4, time:number, delta_time:number): void {
-        this.on_update(this, this.engine, time, delta_time);
+        this.on_render(this, this.engine, time, delta_time);
     }
 }
 
@@ -306,6 +336,26 @@ export class Node3D extends Node {
     protected on_change_rotation(new_value:Quat) {}// ABSTRACT METHOD
     protected on_change_scale(new_value:Vec3) {}// ABSTRACT METHOD
 
+    get_world_position():Vec3 {
+        const world_matrix = this.get_world_matrix();
+        return new Vec3(world_matrix[12], world_matrix[13], world_matrix[14]);
+    }
+
+    get_parent_world_matrix():Mat4 {
+        if (this.parent instanceof Node3D) {
+            return this.parent.get_world_matrix();
+        } else if (this.parent) {
+            let parent = this.parent.parent;
+            while (parent) {
+                if (parent instanceof Node3D) {
+                    return parent.get_world_matrix();
+                }
+                parent = parent.parent;
+            }
+        }
+        return new Mat4().identity();
+    }
+
     get_model_matrix():Mat4 {
         const model = new Mat4().identity();
 
@@ -320,20 +370,6 @@ export class Node3D extends Node {
     }
 
     get_world_matrix():Mat4 {
-        const local = this.get_model_matrix();
-        
-        if (this.parent instanceof Node3D) {
-            return this.parent.get_world_matrix().mul(local)
-        } else if (this.parent) {
-            let parent = this.parent.parent;
-            while (parent) {
-                if (parent instanceof Node3D) {
-                    return parent.get_world_matrix().mul(local)
-                }
-                parent = parent.parent;
-            }
-        }
-
-        return local;
+        return this.get_parent_world_matrix().mul(this.get_model_matrix())
     }
 }

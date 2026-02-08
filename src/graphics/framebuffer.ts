@@ -38,6 +38,7 @@ export class Framebuffer implements Disposable {
     webgl_frame_buffer:WebGLFramebuffer;
     attachment_info_map:{[key:string]:AttachmentInfo} = {};
     use_depth_buffer:boolean = false;
+    use_color_buffer:boolean = false;
     color_attachment_count:number = 0;
     read_source_color_attachment:number = 0
 
@@ -119,13 +120,18 @@ export class Framebuffer implements Disposable {
         const not_bound = this.gm.framebuffer !== this;
         if (not_bound)
             this.use();
-        this.gl.clearDepth(1.0);
-        const cc = this.clear_color;
-        this.gl.clearColor(cc.x, cc.y, cc.z, cc.w);
-        this.gl.clear(
-            this.gl.COLOR_BUFFER_BIT |
-            (this.use_depth_buffer ? this.gl.DEPTH_BUFFER_BIT : 0)
-        );
+        if (this.use_depth_buffer)
+            this.gl.clearDepth(1.0);
+        if (this.use_color_buffer) {
+            const cc = this.clear_color;
+            this.gl.clearColor(cc.x, cc.y, cc.z, cc.w);
+        }
+        if (this.use_depth_buffer || this.use_color_buffer) {
+            this.gl.clear(
+                (this.use_color_buffer ? this.gl.COLOR_BUFFER_BIT : 0) |
+                (this.use_depth_buffer ? this.gl.DEPTH_BUFFER_BIT : 0)
+            );
+        }
 
         if (not_bound)
             this.gm.unuse_framebuffer();
@@ -237,6 +243,8 @@ export class Framebuffer implements Disposable {
         
         const attachment_num = this.gl.COLOR_ATTACHMENT0 + this.color_attachment_count;
         
+        this.use_color_buffer = true;
+
         this.gl.framebufferTextureLayer(
             this.gl.FRAMEBUFFER,
             attachment_num,
@@ -262,6 +270,8 @@ export class Framebuffer implements Disposable {
         tex_parameters[this.gl.TEXTURE_WRAP_T] = this.gl.CLAMP_TO_EDGE;
         
         const attachment_num = this.gl.COLOR_ATTACHMENT0 + this.color_attachment_count;
+
+        this.use_color_buffer = true;
         
         this.gl.framebufferTexture2D(
             this.gl.FRAMEBUFFER,
@@ -307,6 +317,8 @@ export class Framebuffer implements Disposable {
         tex_parameters[this.gl.TEXTURE_WRAP_T] = this.gl.CLAMP_TO_EDGE;
         
         const attachment_num = this.gl.COLOR_ATTACHMENT0 + this.color_attachment_count;
+
+        this.use_color_buffer = true;
 
         const faces = [
             this.gl.TEXTURE_CUBE_MAP_POSITIVE_X, this.gl.TEXTURE_CUBE_MAP_NEGATIVE_X,

@@ -5,6 +5,8 @@ import { ShaderProgram } from "../../graphics/shader_program.ts";
 import { AttachmentType, Framebuffer } from "../../graphics/framebuffer.ts";
 import { Texture, TextureType } from "../../graphics/assets/texture.ts";
 
+
+
 export class Light extends Node3D {
     color:Vec3;
     ambient:number;

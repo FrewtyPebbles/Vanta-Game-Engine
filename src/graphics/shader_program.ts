@@ -96,7 +96,6 @@ export class ShaderProgram {
             WebGLUniformType.SHADOW_CUBE_MAP,
         ].includes(uniform_type)) {
             this.uniforms[label].texture_unit = this.texture_counter;
-            // console.log(`TU ${label} (${uniform_type}) : ${this.uniforms[label].texture_unit}`);
             
             this.texture_counter += uniform_size;
         }

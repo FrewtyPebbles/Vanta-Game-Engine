@@ -1,6 +1,7 @@
 export default `#version 300 es
 precision highp float;
 precision highp sampler2DArrayShadow;
+precision highp sampler2DArray;
 
 uniform mediump int directional_lights_count;
 uniform mediump int point_lights_count;
@@ -17,7 +18,7 @@ layout(location = 2) in vec2 a_uv;
 
 out vec3 v_normal;
 out vec2 v_uv;
-out vec3 v_frag_pos;
+out vec4 v_frag_pos;
 
 
 // Uniform MVP matrix
@@ -27,9 +28,9 @@ uniform mat4 u_projection;
 
 void main() {
 
-    v_frag_pos = vec3(u_model * vec4(a_position, 1.0));
-    v_normal = mat3(transpose(inverse(u_model))) * a_normal;
+    v_frag_pos = u_model * vec4(a_position, 1.0);
+    v_normal = normalize(mat3(transpose(inverse(u_model))) * a_normal);
     v_uv = a_uv;
 
-    gl_Position = u_projection * u_view * vec4(v_frag_pos, 1.0);
+    gl_Position = u_projection * u_view * v_frag_pos;
 }`;
