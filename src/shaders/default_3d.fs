@@ -105,7 +105,7 @@ float geometry_schlick_GGX(float NdotV, float k);
 float geometry_smith(vec3 N, vec3 V, vec3 L, float k);
 vec3 fresnel_schlick(float cosTheta, vec3 F0);
 
-vec3 Fr(vec3 light_dir, vec4 albedo_color);
+vec3 Fr(vec3 light_dir, vec4 albedo_color, bool image_lighting);
 
 vec3 calculate_point_lighting(vec4 base_color);
 
@@ -119,7 +119,11 @@ float calculate_directional_shadow(int index, vec3 light_dir);
 
 void main() {
     
-    vec4 base_color = texture(material_texture_albedo, v_uv);
+    vec4 base_color;
+    if (material.has_albedo_texture)
+        base_color = texture(material_texture_albedo, v_uv);
+    else
+        base_color = vec4(material.albedo, 1.0);
 
     vec3 lighting = calculate_lighting(base_color);
 
@@ -184,7 +188,7 @@ vec3 calculate_point_lighting(vec4 base_color) {
         PointLight light = point_lights[i];
         vec3 light_dir = normalize(light.position - v_frag_pos.xyz);
         float n_dot_l = max(dot(v_normal, light_dir), 0.0);
-        vec3 product = Fr(light_dir, base_color) * L(light) * n_dot_l;
+        vec3 product = Fr(light_dir, base_color, false) * L(light) * n_dot_l;
         float shadow = calculate_point_shadow(i, light);
         cumulative_radiance += product * light.color * shadow;
     }
@@ -230,7 +234,7 @@ vec3 calculate_directional_lighting(vec4 base_color) {
         DirectionalLight light = directional_lights[i];
         vec3 light_dir = (light.rotation * vec4(1.0,0.0,0.0, 0.0)).xyz;
         float n_dot_l = max(dot(v_normal, light_dir), 0.0);
-        vec3 product = Fr(light_dir, base_color) * L(light) * n_dot_l;
+        vec3 product = Fr(light_dir, base_color, false) * L(light) * n_dot_l;
         float shadow = calculate_directional_shadow(i, light_dir);
         cumulative_radiance += product * light.color * shadow;
     }
@@ -238,15 +242,23 @@ vec3 calculate_directional_lighting(vec4 base_color) {
     return cumulative_radiance;
 }
 
-vec3 Fr(vec3 light_dir, vec4 albedo_color) {
+vec3 Fr(vec3 light_dir, vec4 albedo_color, bool image_lighting) {
 
     // COOK TORRANCE
     vec3 view_vector = normalize(camera_position - v_frag_pos.xyz);
     vec3 halfway_vector = (light_dir + view_vector) / length(light_dir + view_vector);
-    
+
+    float roughness = max(material.roughness, 0.04);
+
+    float k;
+    if (image_lighting)
+        k = pow(roughness, 2.0) / 2.0;
+    else
+        k = pow(roughness + 1.0, 2.0) / 8.0;
+
     /// DGF
-    float D = distribution_GGX(v_normal, halfway_vector, material.roughness);
-    float G = geometry_smith(v_normal, view_vector, light_dir, material.roughness);
+    float D = distribution_GGX(v_normal, halfway_vector, roughness);
+    float G = geometry_smith(v_normal, view_vector, light_dir, k);
     vec3 F0 = vec3(0.04); 
     F0 = mix(F0, albedo_color.rgb, material.metalic);
     vec3 F = fresnel_schlick(max(dot(halfway_vector, view_vector), 0.0), F0);

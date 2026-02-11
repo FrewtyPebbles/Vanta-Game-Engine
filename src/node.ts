@@ -58,7 +58,8 @@ export class Node {
             this.engine.hook_manager.call_on_render_callback(this.lua_url, node, engine, time, delta_time);
     }
 
-    protected on_parented() {}
+    protected on_parented() {
+    }
 
     has_child(node:Node|string):boolean {
         if (node instanceof Node)
@@ -93,6 +94,21 @@ export class Node {
             return this.parent;
         if (this.parent)
             return this.parent.get_parent_of_type<T>(node_type);
+        return null;
+    }
+
+    get_child(name:string):Node|null {
+        
+        // node is string
+        for (const child of this.children) {
+            if (child.name === name)
+                return child;
+            else {
+                const result = child.get_child(name);
+                if (result)
+                    return result;
+            }
+        }
         return null;
     }
 

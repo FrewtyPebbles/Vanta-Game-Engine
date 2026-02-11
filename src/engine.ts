@@ -38,9 +38,6 @@ export default class Engine {
 
     async start() {
         await this.on_global_start_callback(this);
-        this.graphics_manager.render((_, time, delta_time) => {
-            this.on_global_update_callback(this, time, delta_time);
-            this.input_manager.update();
-        })
+        this.graphics_manager.render();
     }
 };

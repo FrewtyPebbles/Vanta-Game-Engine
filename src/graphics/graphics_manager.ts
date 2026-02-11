@@ -467,18 +467,18 @@ export class GraphicsManager {
 
 
 
-    render(update_callback:(gm:GraphicsManager, time:number, delta_time:number)=>void) {
+    render() {
         // start the recursive render frame loop.
-        this.render_frame(update_callback);
+        this.render_frame();
     }
 
-    private render_frame(update_callback:(gm:GraphicsManager, time:number, delta_time:number)=>void, current_time: number = 0):number {        
+    private render_frame(current_time: number = 0):number {        
         
         // first frame, initialize and skip large delta
         if (this.last_frame_time === null) {
             this.last_frame_time = current_time;
-            update_callback(this, current_time, 0);
-            return requestAnimationFrame((newTime) => this.render_frame(update_callback, newTime));
+            this.engine.input_manager.update();
+            return requestAnimationFrame((newTime) => this.render_frame(newTime));
         }
 
         // calculate delta in seconds
@@ -487,25 +487,25 @@ export class GraphicsManager {
         delta_time = delta_time;
 
         this.last_frame_time = current_time;
-
-        update_callback(this, current_time, delta_time);
+        
         
         this.resize_canvas();
         
         this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
         this.gl.clearColor(0, 0, 0, 0);
         this.gl.clear(this.gl.COLOR_BUFFER_BIT);
-
+        
+        this.engine.on_global_update_callback(this.engine, current_time, delta_time);
+        this.engine.main_scene.update(current_time, delta_time);
+        this.engine.input_manager.update();
+        
         // Render node heirarchy.
         const ortho_projection = new Mat4().orthoZO(0, this.canvas.width, 0, this.canvas.height, -1, 1);
-
-        this.engine.main_scene.update(current_time, delta_time);
-
         if (this.engine.main_scene.main_camera_3d) {
-
+            
             const view_matrix = this.engine.main_scene.main_camera_3d.get_view_matrix();
             const projection_matrix = this.engine.main_scene.main_camera_3d.get_projection_matrix(this.canvas);
-
+            
             // RENDER SHADOWS
             for (const light of this.point_lights) {
                 light.draw_shadow_map(
@@ -515,7 +515,7 @@ export class GraphicsManager {
                     current_time, delta_time
                 );
             }
-
+            
             for (const light of this.directional_lights) {                
                 light.draw_shadow_map(
                     view_matrix,
@@ -524,19 +524,20 @@ export class GraphicsManager {
                     current_time, delta_time
                 );
             }
-
+            
             this.engine.main_scene.render(
                 view_matrix,
                 projection_matrix,
                 ortho_projection,
                 current_time, delta_time
             );
-
+            
         } else {
             console.warn(`The main scene "${this.engine.main_scene.name}" does not have a main camera 3D`);
         }
         
-        return requestAnimationFrame((new_time) => this.render_frame(update_callback, new_time));
+        
+        return requestAnimationFrame((new_time) => this.render_frame(new_time));
     }
 
     create_default_2d_shader_program():ShaderProgram {

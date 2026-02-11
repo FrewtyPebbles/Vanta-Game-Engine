@@ -228,7 +228,6 @@ export class Texture implements Disposable {
                     image
                 );
             }
-            console.log("CAT", width, height, images);
         } else {
             this.gm.gl.texImage3D(
                 this.gm.gl.TEXTURE_2D_ARRAY,

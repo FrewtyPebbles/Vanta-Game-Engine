@@ -5,15 +5,18 @@ import { Mesh } from "./mesh.ts";
 
 export class Model {
     gm:GraphicsManager;
+    name:string;
     mesh:Mesh;
     material:Material;
 
     constructor(
         gm:GraphicsManager,
+        name:string,
         mesh:Mesh,
         material:Material,
     ) {
         this.gm = gm;
+        this.name = name;
         this.mesh = mesh;
         this.material = material;
     }

@@ -2,6 +2,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
 import CopyPlugin from 'copy-webpack-plugin';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,7 +55,7 @@ export default {
       url: false,
       module: false,
       fs: false,
-      path: false
+      path: require.resolve("path-browserify")
     }
   },
   output: {

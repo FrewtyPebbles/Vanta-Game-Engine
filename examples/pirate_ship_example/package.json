@@ -12,7 +12,7 @@
   "license": "ISC",
   "type": "module",
   "devDependencies": {
-    "@types/node": "^25.0.10",
+    "@types/node": "^25.2.3",
     "copy-webpack-plugin": "^13.0.1",
     "html-webpack-plugin": "^5.6.6",
     "raw-loader": "^4.0.2",
@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@vicimpa/glm": "^0.1.10",
+    "path-browserify": "^1.0.1",
     "webgl2-engine": "file:../.."
   }
 }

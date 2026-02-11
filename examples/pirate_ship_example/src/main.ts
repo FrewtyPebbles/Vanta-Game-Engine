@@ -1,5 +1,5 @@
 import { Mat3, Mat4, Quat, Vec2, vec3, Vec3, Vec4 } from "@vicimpa/glm";
-import Engine, { load_obj, GraphicsManager, WebGLUniformType, Object3D, Skybox, InputManager, Sprite2D, Node, AttachmentType, PointLight, Texture, CubeMapTexture, TextureType, Camera3D, DirectionalLight } from "webgl2-engine";
+import Engine, { load_obj, GraphicsManager, WebGLUniformType, Object3D, Skybox, InputManager, Sprite2D, Node, AttachmentType, PointLight, Texture, CubeMapTexture, TextureType, Camera3D, DirectionalLight, AssetFile, Node3D } from "webgl2-engine";
 
 async function startup(engine:Engine) {
 
@@ -11,17 +11,23 @@ async function startup(engine:Engine) {
     if (!gm.webgl_enabled()) {
         throw new Error("WebGL2 is not enabled!");
     }
-    const pirate_ship_model_promise = load_obj(gm, "/assets/models/pirate_ship/source/pirate_ship.obj", [
-        "/assets/models/pirate_ship/textures/pirate_ship.png"
-    ]);
+    const pirate_ship_promise = AssetFile.OBJ.load_obj(
+        engine,
+        "/assets/models/pirate_ship/source/pirate_ship.obj",
+        "/assets/models/pirate_ship/textures/"
+    );
 
-    const anchor_model_promise = load_obj(gm, "/assets/models/MedievalAnchor/source/MedievalAnchor.obj", [
-        "/assets/models/MedievalAnchor/textures/AnchorHook_albedo.png"
-    ]);
+    const anchor_promise = AssetFile.OBJ.load_obj(
+        engine,
+        "/assets/models/MedievalAnchor/source/MedievalAnchor.obj",
+        "/assets/models/MedievalAnchor/textures/"
+    );
 
     const sphere_model_promise = load_obj(gm, "/assets/models/sphere/source/sphere.obj", [
         "/assets/models/sphere/textures/Poliigon_FoodPastryDonut_10737_BaseColor.jpg"
     ]);
+
+    const name_promise = AssetFile.OBJ.load_obj(engine, "/assets/models/name/source/name.obj", "/assets/models/name/textures/")
 
     // SUBMERGED SHADER
     const shader_prog_submerged = gm.create_shader_program("submerged");
@@ -100,7 +106,7 @@ async function startup(engine:Engine) {
     shader_prog_submerged.add_uniform("u_directional_light_space_matrix[]", WebGLUniformType.F4M);
     shader_prog_submerged.add_uniform("u_point_light_space_matrix[]", WebGLUniformType.F4M);
     shader_prog_submerged.add_uniform("directional_light_shadow_maps", WebGLUniformType.SHADOW_2D_ARRAY);
-    shader_prog_submerged.add_uniform("point_light_shadow_maps", WebGLUniformType.TEXTURE_2D_ARRAY);
+    shader_prog_submerged.add_uniform("point_light_shadow_maps", WebGLUniformType.SHADOW_2D_ARRAY);
     shader_prog_submerged.add_uniform("shadow_map_size", WebGLUniformType.F2V);
 
     shader_prog_submerged.build()
@@ -118,30 +124,24 @@ async function startup(engine:Engine) {
 
     engine.main_scene.root_node = new Skybox(engine, "default_skybox", skybox_texture, new Vec3(0.5));
 
-    const pirate_ship_model = await pirate_ship_model_promise;
-
-    if (!pirate_ship_model)
-        throw new Error("Failed to load pirate ship model.")
-
-    const pirate_ship = new Object3D(engine, "pirate_ship", pirate_ship_model);
-
-    pirate_ship.model.material.roughness = 1.0
-    pirate_ship.model.material.metalic = 0.0
-    pirate_ship.model.material.ao = 0.0
+    const pirate_ship:Object3D = (await pirate_ship_promise).get_child("pirate_ship")!.get_child("pirate_ship")! as Object3D;
     pirate_ship.model.material.blend_function = {sfactor:gm.gl.SRC_ALPHA, dfactor:gm.gl.ONE_MINUS_SRC_ALPHA};
-    // pirate_ship.model.material.set_shader_program(shader_prog_submerged);
+    pirate_ship.model.material.set_shader_program(shader_prog_submerged);
 
-    const anchor_model = await anchor_model_promise;
+    const anchor = (await anchor_promise) as Node3D;
 
-    if (!anchor_model)
-        throw new Error("Failed to load anchor model.")
-
-    const anchor = new Object3D(engine, "anchor", anchor_model);
-
-    anchor.model.material.roughness = 1.0
-    anchor.model.material.metalic = 0.0
-    anchor.model.material.blend_function = {sfactor:gm.gl.SRC_ALPHA, dfactor:gm.gl.ONE_MINUS_SRC_ALPHA};
-    // anchor.model.material.set_shader_program(shader_prog_submerged);
+    for (const child of anchor.children) {
+        if (child instanceof Object3D) {
+            child.model.material.blend_function = {sfactor:gm.gl.SRC_ALPHA, dfactor:gm.gl.ONE_MINUS_SRC_ALPHA};
+            child.model.material.set_shader_program(shader_prog_submerged);
+        }
+        for (const sub_child of child.children) {
+            if (sub_child instanceof Object3D) {
+                sub_child.model.material.blend_function = {sfactor:gm.gl.SRC_ALPHA, dfactor:gm.gl.ONE_MINUS_SRC_ALPHA};
+                sub_child.model.material.set_shader_program(shader_prog_submerged);
+            }
+        }
+    }
 
     const sphere_model = await sphere_model_promise;
 
@@ -153,7 +153,9 @@ async function startup(engine:Engine) {
     sphere.model.material.roughness = 0.5
     sphere.model.material.metalic = 1.0
     sphere.model.material.blend_function = {sfactor:gm.gl.SRC_ALPHA, dfactor:gm.gl.ONE_MINUS_SRC_ALPHA};
-    // sphere.model.material.set_shader_program(shader_prog_submerged);
+    sphere.model.material.set_shader_program(shader_prog_submerged);
+
+    const name = (await name_promise) as Node3D;
 
     await anchor.set_lua_file("/assets/src/anchor.lua");
 
@@ -164,11 +166,6 @@ async function startup(engine:Engine) {
     const point_light_1 = new PointLight(engine, "point_light", new Vec3(1.0,0.2,0.8), 1.0, 1.0, 1.0, 2.0, 1000.0);
     const point_light_2 = new PointLight(engine, "point_light2", new Vec3(0.0,1.0,0.8), 1.0, 1.0, 1.0, 2.0, 1000.0);
     const point_light_3 = new PointLight(engine, "point_light3", new Vec3(1.0,0.2,0.8), 1.0, 1.0, 1.0, 2.0, 1000.0);
-    const point_light_4 = new PointLight(engine, "point_light4", new Vec3(1.0,0.2,1.0), 1.0, 1.0, 1.0, 2.0, 1000.0);
-    const point_light_5 = new PointLight(engine, "point_light5", new Vec3(1.0,1.0,1.0), 1.0, 1.0, 1.0, 2.0, 1000.0);
-    const point_light_6 = new PointLight(engine, "point_light6", new Vec3(1.0,0.0,1.0), 1.0, 1.0, 1.0, 2.0, 1000.0);
-    const point_light_7 = new PointLight(engine, "point_light7", new Vec3(0.0,0.0,1.0), 1.0, 1.0, 1.0, 2.0, 1000.0);
-    const point_light_8 = new PointLight(engine, "point_light8", new Vec3(0.0,0.0,1.0), 1.0, 1.0, 1.0, 2.0, 1000.0);
     
     const ocean_light = new DirectionalLight(engine, "ocean_light", new Vec3(0.0,0.0,1.0), 1.0, 1.0, 1.0, 2.0)
     const sun_light = new DirectionalLight(engine, "sun_light", new Vec3(1.0,1.0,0.0), 1.0, 1.0, 1.0, 2.0)
@@ -182,15 +179,12 @@ async function startup(engine:Engine) {
     pirate_ship.push_child(point_light_1);
     pirate_ship.push_child(point_light_2);
     engine.main_scene.root_node.push_child(point_light_3);
-    engine.main_scene.root_node.push_child(point_light_4);
-    engine.main_scene.root_node.push_child(point_light_5);
-    engine.main_scene.root_node.push_child(point_light_6);
-    engine.main_scene.root_node.push_child(point_light_7);
-    engine.main_scene.root_node.push_child(point_light_8);
     engine.main_scene.root_node.push_child(sun_light);
     engine.main_scene.root_node.push_child(ocean_light);
+    engine.main_scene.root_node.push_child(name);
     
     engine.main_scene.root_node.push_child(overlay);
+
 
     ocean_light.rotation.rotateZ(270 * (Math.PI / 180))
     sun_light.rotation.rotateZ(100 * (Math.PI / 180))
@@ -198,11 +192,11 @@ async function startup(engine:Engine) {
     point_light_1.position = new Vec3(100, 150, 0);
     point_light_2.position = new Vec3(-100, 150, 0);
     point_light_3.position = new Vec3(10, 150, 150);
-    point_light_4.position = new Vec3(10, 50, 50);
-    point_light_5.position = new Vec3(10, 50, 250);
-    point_light_6.position = new Vec3(100, 100, 250);
     sphere.position = new Vec3(200, 0, 0);
     sphere.scale = new Vec3(100);
+    name.scale = new Vec3(100);
+    name.position = new Vec3(0, 100, 100);
+
     
     anchor.position = new Vec3(0,130,0);
     anchor.rotation.rotateX(-Math.PI/8);
