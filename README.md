@@ -1,10 +1,10 @@
-# Vanta Game Engine
+# Vanta 3D Engine
 
-The Vanta game engine is a game engine designed with a portability first mindset. The first backend for Vanta is WebGL2 based allowing for great cross platform support.
+The Vanta 3D engine is a 3D engine designed with a portability first mindset. The first backend for Vanta is WebGL2 based allowing for great cross platform support.
 
 ## The Runtime
 
-The engine runtime currently uses a lua frontend via a [wasmoon](https://github.com/ceifa/wasmoon) web assembly runtime. End developer game code is written in lua to abstract away the game code from the engine implementation language itself. The reasoning behind this is that in the future it will be easier for me to write other posibly native backends for the engine with other langauges or apis like C++ with Vulkan or DX12.
+The engine runtime currently uses a lua frontend via a [wasmoon](https://github.com/ceifa/wasmoon) web assembly runtime. End developer code is written in lua to abstract it away from the engine implementation backend and language. The reasoning behind this is that in the future it will be easier for me to write other posibly native backends for the engine with other langauges or apis like C++ with Vulkan or DX12.
 
 ## Current Features:
 
@@ -14,7 +14,8 @@ The engine runtime currently uses a lua frontend via a [wasmoon](https://github.
 
  - Robust point and directional shadows
 
- - Lua based game code frontend
+ - Lua based end developer code frontend
+     - This is for sandboxing in the future to prevent web security vulnerabilities.
 
  - Versatile Shader Pipeline
 
@@ -54,7 +55,7 @@ The engine runtime currently uses a lua frontend via a [wasmoon](https://github.
          - Compilation into WGSL
     
  - A domain specific asset file format which stores node trees and scenes in a zipped json and binary combination format. The asset importer will be able to convert OBJ and glTF files to this format.
-     - **My Thoughts** : This is very do-able and would do alot for my own and the end game developer's sanity. It will also make things much easier when I try to add an actual editor.
+     - **My Thoughts** : This is very do-able and would do alot for my own and the end developer's sanity. It will also make things much easier when I try to add an actual editor.
 
  - A primary WebGPU backend which falls back to the Webgl2 backend.
      - **My Thoughts** : This will likely require alot of refactoring and creating a second compilation backend for the shader language since WebGPU uses WGSL. For me, this is not a priority at the moment.
